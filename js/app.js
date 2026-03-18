@@ -1,5 +1,5 @@
 /* ============================================================
-   Greysteel Unit Walkthrough — app.js v4
+   Greysteel Unit Walkthrough -- app.js v4
    ============================================================ */
 
 const DRAFT_KEY = 'gs_wt_v4';
@@ -291,7 +291,7 @@ function renderPhotoGrid(photos) {
   photos.forEach((src, i) => {
     const wrap = document.createElement('div'); wrap.className = 'photo-thumb-wrap';
     const img = document.createElement('img'); img.src = src; img.alt = ''; img.onclick = () => openLightbox(src);
-    const del = document.createElement('button'); del.className = 'photo-remove'; del.textContent = '×';
+    const del = document.createElement('button'); del.className = 'photo-remove'; del.textContent = 'x';
     del.onclick = ev => {
       ev.stopPropagation();
       S.data[S.photoModalUnit][S.photoModalCat].photos.splice(i, 1);
@@ -309,7 +309,7 @@ function closeLightbox() { document.getElementById('lightbox').classList.remove(
 function saveDraft(silent = false) {
   try {
     // Strip photos from draft to avoid localStorage size limits.
-    // Photos live in memory only — they survive tab switches but not full page reloads.
+    // Photos live in memory only -- they survive tab switches but not full page reloads.
     const dataNoPhotos = {};
     Object.keys(S.data).forEach(u => {
       dataNoPhotos[u] = {};
@@ -323,7 +323,7 @@ function saveDraft(silent = false) {
     }));
     if (!silent) showToast('Draft saved');
   } catch (e) {
-    if (!silent) showToast('Draft saved (no photos — retake on reload)');
+    if (!silent) showToast('Draft saved (no photos -- retake on reload)');
   }
 }
 
@@ -331,7 +331,7 @@ function saveDraft(silent = false) {
 function finishWalkthrough() { saveDraft(true); renderSummary(); showScreen('screen-summary'); }
 function renderSummary() {
   document.getElementById('summary-title').textContent = S.property;
-  document.getElementById('summary-sub').textContent = `Inspected by ${S.inspector || '—'} · ${fmtDate(S.date)}`;
+  document.getElementById('summary-sub').textContent = `Inspected by ${S.inspector || '--'} . ${fmtDate(S.date)}`;
   let photos = 0, poor = 0;
   S.units.forEach(u => S.categories.forEach(c => {
     if (S.data[u][c]?.deleted) return;
@@ -350,7 +350,7 @@ function renderSummary() {
     const uf  = activeCats.filter(c => S.data[u][c].condition || S.data[u][c].note).length;
     const uph = activeCats.reduce((s, c) => s + S.data[u][c].photos.length, 0);
     const row = document.createElement('div'); row.className = 'urt-row';
-    row.innerHTML = `<span class="urt-unit">Unit ${esc(u)}</span><span class="urt-done">${uf}/${activeCats.length}</span><span class="urt-done">${uph}</span><span class="urt-poor">${up > 0 ? up : '—'}</span><button class="btn-ghost-lg" style="font-size:13px;padding:6px 10px;" onclick="jumpUnit(${i})">Edit</button>`;
+    row.innerHTML = `<span class="urt-unit">Unit ${esc(u)}</span><span class="urt-done">${uf}/${activeCats.length}</span><span class="urt-done">${uph}</span><span class="urt-poor">${up > 0 ? up : '--'}</span><button class="btn-ghost-lg" style="font-size:13px;padding:6px 10px;" onclick="jumpUnit(${i})">Edit</button>`;
     tbody.appendChild(row);
   });
 }
@@ -378,11 +378,11 @@ function exportExcel() {
     <div style="padding:11px 16px 7px;font-size:11px;letter-spacing:0.09em;text-transform:uppercase;color:#9e9890;font-family:'DM Sans',sans-serif;border-bottom:1px solid rgba(26,35,50,0.08);">Export as</div>
     <button onclick="var m=document.getElementById('export-menu');if(m)m.remove();exportHTMLReport();" style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;background:none;border:none;border-bottom:1px solid rgba(26,35,50,0.07);font-size:14px;font-family:'DM Sans',sans-serif;color:#1a2332;cursor:pointer;text-align:left;">
       <svg width="16" height="16" fill="none" stroke="#c9a84c" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      <div><div style="font-weight:500;">PDF Report</div><div style="font-size:11px;color:#9e9890;margin-top:1px;">Formatted · includes photos</div></div>
+      <div><div style="font-weight:500;">PDF Report</div><div style="font-size:11px;color:#9e9890;margin-top:1px;">Formatted . includes photos</div></div>
     </button>
     <button onclick="var m=document.getElementById('export-menu');if(m)m.remove();exportPlainExcel();" style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;background:none;border:none;font-size:14px;font-family:'DM Sans',sans-serif;color:#1a2332;cursor:pointer;text-align:left;">
       <svg width="16" height="16" fill="none" stroke="#1a2332" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-      <div><div style="font-weight:500;">Excel spreadsheet</div><div style="font-size:11px;color:#9e9890;margin-top:1px;">Data only · no photos</div></div>
+      <div><div style="font-weight:500;">Excel spreadsheet</div><div style="font-size:11px;color:#9e9890;margin-top:1px;">Data only . no photos</div></div>
     </button>`;
   document.body.appendChild(menu);
   setTimeout(() => document.addEventListener('click', function h(e) {
@@ -398,7 +398,7 @@ function exportHTMLReport() {
 
   const condLabel = c => ({ good:'Good', fair:'Fair', poor:'Poor', na:'N/A' }[c] || '');
   const condBadge = c => {
-    if (!c) return '<span style="color:#b8b2a8;font-size:12px;">—</span>';
+    if (!c) return '<span style="color:#b8b2a8;font-size:12px;">--</span>';
     const styles = {
       good: 'background:#edf7ed;color:#2e7d32;border:1px solid #81c78460;',
       fair: 'background:#fff8e1;color:#e65100;border:1px solid #ffb74d60;',
@@ -420,7 +420,7 @@ function exportHTMLReport() {
         <td style="padding:12px 16px;font-size:13px;font-weight:500;color:#1a2332;border-bottom:1px solid #ede9e1;width:190px;vertical-align:top;white-space:nowrap;">${esc(cat)}</td>
         <td style="padding:12px 16px;border-bottom:1px solid #ede9e1;vertical-align:top;width:90px;">${condBadge(e.condition)}</td>
         <td style="padding:12px 16px;font-size:13px;color:#3a3530;border-bottom:1px solid #ede9e1;vertical-align:top;line-height:1.6;">${esc(e.note || '')}</td>
-        <td style="padding:12px 16px;border-bottom:1px solid #ede9e1;vertical-align:top;font-size:12px;color:${photoCount ? '#c9a84c' : '#b8b2a8'};">${photoCount ? `${photoCount} photo${photoCount > 1 ? 's' : ''} — see appendix` : '—'}</td>
+        <td style="padding:12px 16px;border-bottom:1px solid #ede9e1;vertical-align:top;font-size:12px;color:${photoCount ? '#c9a84c' : '#b8b2a8'};">${photoCount ? `${photoCount} photo${photoCount > 1 ? 's' : ''} -- see appendix` : '--'}</td>
       </tr>`;
     });
     const poor = activeCats.filter(c => S.data[u][c].condition === 'poor').length;
@@ -485,7 +485,7 @@ function exportHTMLReport() {
     <div style="page-break-before:always;margin-top:0;">
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #1a2332;">
         <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:500;color:#1a2332;">Photo Appendix</div>
-        <div style="font-size:12px;color:#9e9890;margin-top:4px;">${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''} · ${esc(S.property)}</div>
+        <div style="font-size:12px;color:#9e9890;margin-top:4px;">${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''} . ${esc(S.property)}</div>
       </div>
       ${photoAppendixItems}
     </div>` : '';
@@ -494,7 +494,7 @@ function exportHTMLReport() {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Walkthrough Report — ${esc(S.property)}</title>
+<title>Walkthrough Report -- ${esc(S.property)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -515,7 +515,7 @@ function exportHTMLReport() {
       <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       Print / Save as PDF
     </button>
-    <span style="font-size:13px;color:#9e9890;">File → Print → Save as PDF in your browser</span>
+    <span style="font-size:13px;color:#9e9890;">File -> Print -> Save as PDF in your browser</span>
   </div>
 
   <div style="background:#1a2332;border-radius:14px;padding:28px 32px;margin-bottom:28px;">
@@ -527,7 +527,7 @@ function exportHTMLReport() {
       </div>
       <div style="text-align:right;">
         <div style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Inspector</div>
-        <div style="font-size:15px;color:#fff;margin-bottom:12px;">${esc(S.inspector || '—')}</div>
+        <div style="font-size:15px;color:#fff;margin-bottom:12px;">${esc(S.inspector || '--')}</div>
         <div style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Date</div>
         <div style="font-size:15px;color:#fff;">${date}</div>
       </div>
@@ -566,7 +566,7 @@ function exportHTMLReport() {
 
   const blob = new Blob([html], { type: 'text/html' });
   window.open(URL.createObjectURL(blob), '_blank');
-  showToast('Report opened — print or save as PDF');
+  showToast('Report opened -- print or save as PDF');
 }
 
 /* ============================================================ EXCEL */
@@ -574,7 +574,7 @@ function exportPlainExcel() {
   if (!S.units.length) return;
   const cats = S.categories;
   const condLabel = c => ({ good:'Good', fair:'Fair', poor:'Poor', na:'N/A' }[c] || '');
-  const headers = ['Property','Inspector','Date','Unit', ...cats.flatMap(c => [c + ' — Condition', c + ' — Notes'])];
+  const headers = ['Property','Inspector','Date','Unit', ...cats.flatMap(c => [c + ' -- Condition', c + ' -- Notes'])];
   const rows = [headers];
   S.units.forEach(u => {
     const row = [S.property, S.inspector, fmtDate(S.date), u];
@@ -613,7 +613,7 @@ function exportPlainExcel() {
 
 /* ============================================================ SAMPLE DATA */
 function loadSampleData() {
-  // No placeholder photos — sample data uses empty arrays.
+  // No placeholder photos -- sample data uses empty arrays.
   // Add real photos by tapping the Photos button on any card.
 
   document.getElementById('prop-name').value = '604 12th Street NE';
@@ -624,8 +624,8 @@ function loadSampleData() {
 
   const sampleData = {
     '101': {
-      'Kitchen (appliances, cabinets, countertops)': { condition:'fair', note:'Cabinets show wear, door hinge loose on upper left. Appliances functional but dated — original install. Countertops have minor chip near sink.', photos:[], deleted:false },
-      'Bathroom (tile, fixtures, vanity)': { condition:'poor', note:'Grout cracked along tub surround. One floor tile cracked. Vanity faucet drips — needs washer replacement.', photos:[], deleted:false },
+      'Kitchen (appliances, cabinets, countertops)': { condition:'fair', note:'Cabinets show wear, door hinge loose on upper left. Appliances functional but dated -- original install. Countertops have minor chip near sink.', photos:[], deleted:false },
+      'Bathroom (tile, fixtures, vanity)': { condition:'poor', note:'Grout cracked along tub surround. One floor tile cracked. Vanity faucet drips -- needs washer replacement.', photos:[], deleted:false },
       'Flooring': { condition:'fair', note:'Hardwood in living area has scuff marks and one loose board near entry. Carpet in bedroom worn at threshold.', photos:[], deleted:false },
       'Windows & Doors': { condition:'good', note:'All windows operational, seals intact. Front door deadbolt stiff but functional.', photos:[], deleted:false },
       'Walls & Ceilings': { condition:'good', note:'Minor scuff marks throughout, no cracks or water staining.', photos:[], deleted:false },
@@ -636,9 +636,9 @@ function loadSampleData() {
     '102': {
       'Kitchen (appliances, cabinets, countertops)': { condition:'good', note:'Recently updated cabinets and countertops. All appliances clean and functional.', photos:[], deleted:false },
       'Bathroom (tile, fixtures, vanity)': { condition:'good', note:'Tile in good shape. Fixtures clean. Caulk fresh.', photos:[], deleted:false },
-      'Flooring': { condition:'poor', note:'LVT flooring has significant bubbling in kitchen — likely moisture issue underneath. Needs full replacement.', photos:[], deleted:false },
+      'Flooring': { condition:'poor', note:'LVT flooring has significant bubbling in kitchen -- likely moisture issue underneath. Needs full replacement.', photos:[], deleted:false },
       'Windows & Doors': { condition:'good', note:'', photos:[], deleted:false },
-      'Walls & Ceilings': { condition:'fair', note:'Water stain on bedroom ceiling approx 12" diameter — source unclear, may be from unit above. Needs investigation.', photos:[], deleted:false },
+      'Walls & Ceilings': { condition:'fair', note:'Water stain on bedroom ceiling approx 12" diameter -- source unclear, may be from unit above. Needs investigation.', photos:[], deleted:false },
       'HVAC / Mechanicals': { condition:'good', note:'New filter installed. System clean and quiet.', photos:[], deleted:false },
       'Closets & Storage': { condition:'good', note:'', photos:[], deleted:false },
       'General Unit Condition': { condition:'fair', note:'Overall good unit but flooring issue and ceiling stain need to be addressed before re-lease.', photos:[], deleted:false },
@@ -646,12 +646,12 @@ function loadSampleData() {
     '201': {
       'Kitchen (appliances, cabinets, countertops)': { condition:'poor', note:'Cabinet doors missing on two lower units. Dishwasher non-functional. Countertop has large burn mark near range.', photos:[], deleted:false },
       'Bathroom (tile, fixtures, vanity)': { condition:'poor', note:'Toilet runs continuously. Shower head missing. Tile has multiple cracks and missing grout throughout.', photos:[], deleted:false },
-      'Flooring': { condition:'fair', note:'Carpet throughout — heavily worn and stained. Recommend replacement.', photos:[], deleted:false },
+      'Flooring': { condition:'fair', note:'Carpet throughout -- heavily worn and stained. Recommend replacement.', photos:[], deleted:false },
       'Windows & Doors': { condition:'fair', note:'Bedroom window has broken lock. Bathroom window does not seal fully.', photos:[], deleted:false },
       'Walls & Ceilings': { condition:'poor', note:'Multiple holes in drywall in living room. Paint peeling in bathroom. Significant water damage on kitchen ceiling.', photos:[], deleted:false },
       'HVAC / Mechanicals': { condition:'poor', note:'AC unit not cooling. Thermostat unresponsive. Needs full service call or replacement.', photos:[], deleted:false },
       'Closets & Storage': { condition:'fair', note:'Closet rod missing in master. Door off track.', photos:[], deleted:false },
-      'General Unit Condition': { condition:'poor', note:'Unit is in poor condition and not rentable as-is. Significant capex required — estimate 2-3 weeks minimum turn time.', photos:[], deleted:false },
+      'General Unit Condition': { condition:'poor', note:'Unit is in poor condition and not rentable as-is. Significant capex required -- estimate 2-3 weeks minimum turn time.', photos:[], deleted:false },
     }
   };
 
