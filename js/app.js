@@ -118,7 +118,9 @@ function showErr(msg) { const e = document.getElementById('setup-error'); e.text
 function afterStart() {
   document.getElementById('nav-prop-name').textContent = S.property;
   document.getElementById('btn-export-nav').style.display = 'flex';
-  renderUnitTabs(); renderInspectBody();
+  showScreen('screen-inspect');
+  renderUnitTabs();
+  renderInspectBody();
 }
 
 /* ============================================================ TABS */
