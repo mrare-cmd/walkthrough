@@ -246,40 +246,59 @@ function afterStart() {
 
 /* ============================================================ SWIPE */
 function initSwipe() {
-  const body = document.getElementById('inspect-body');
-  if (!body) return;
-  let tx = 0, ty = 0, swiping = false;
-  // Listen on the parent wrapper so it works even when body is re-rendered
-  document.getElementById('inspect-grid-wrap') && attachSwipe(document.getElementById('inspect-grid-wrap'));
-  // Fallback: attach to app-main
-  attachSwipe(document.querySelector('.app-main'));
+  // Attach to the inspect section so it covers the whole scrollable area
+  const section = document.getElementById('screen-inspect');
+  if (!section) return;
+  let tx = 0, ty = 0, locked = false;
+
+  section.addEventListener('touchstart', e => {
+    tx = e.changedTouches[0].clientX;
+    ty = e.changedTouches[0].clientY;
+    locked = false;
+  }, { passive: true });
+
+  section.addEventListener('touchend', e => {
+    if (locked) return;
+    const dx = e.changedTouches[0].clientX - tx;
+    const dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0 && S.activeUnit < S.units.length - 1) {
+      swipeToUnit(S.activeUnit + 1, 'left');
+    } else if (dx > 0 && S.activeUnit > 0) {
+      swipeToUnit(S.activeUnit - 1, 'right');
+    }
+    locked = true;
+  }, { passive: true });
 }
 
-function attachSwipe(el) {
-  if (!el) return;
-  let tx = 0, ty = 0;
-  el.addEventListener('touchstart', e => {
-    tx = e.changedTouches[0].screenX;
-    ty = e.changedTouches[0].screenY;
-  }, { passive: true });
-  el.addEventListener('touchend', e => {
-    const dx = e.changedTouches[0].screenX - tx;
-    const dy = e.changedTouches[0].screenY - ty;
-    // Only trigger if horizontal movement dominates and exceeds threshold
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      if (dx < 0 && S.activeUnit < S.units.length - 1) {
-        // Swipe left = next unit
-        S.activeUnit++;
-        renderUnitTabs(); renderInspectBody();
-        scrollTabIntoView(S.activeUnit);
-      } else if (dx > 0 && S.activeUnit > 0) {
-        // Swipe right = prev unit
-        S.activeUnit--;
-        renderUnitTabs(); renderInspectBody();
-        scrollTabIntoView(S.activeUnit);
-      }
-    }
-  }, { passive: true });
+function swipeToUnit(idx, direction) {
+  const body = document.getElementById('inspect-body');
+  if (!body) return;
+
+  // Slide out current content
+  const outX = direction === 'left' ? '-100%' : '100%';
+  const inX  = direction === 'left' ? '100%'  : '-100%';
+
+  body.style.transition = 'transform 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease';
+  body.style.transform = 'translateX(' + outX + ')';
+  body.style.opacity = '0';
+
+  setTimeout(() => {
+    S.activeUnit = idx;
+    renderUnitTabs();
+    renderInspectBody(); // re-renders body innerHTML, resets inline styles
+    const newBody = document.getElementById('inspect-body');
+    // Start off-screen then animate in
+    newBody.style.transition = 'none';
+    newBody.style.transform = 'translateX(' + inX + ')';
+    newBody.style.opacity = '0';
+    // Force reflow so transition fires
+    newBody.getBoundingClientRect();
+    newBody.style.transition = 'transform 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease';
+    newBody.style.transform = 'translateX(0)';
+    newBody.style.opacity = '1';
+    scrollTabIntoView(idx);
+  }, 220);
 }
 
 function scrollTabIntoView(idx) {
@@ -537,6 +556,9 @@ function exportExcel() {
   menu.style.cssText = 'position:fixed;top:54px;right:12px;background:#fff;border:1px solid rgba(26,35,50,0.15);border-radius:12px;box-shadow:0 8px 28px rgba(26,35,50,0.16);z-index:400;min-width:230px;overflow:hidden;';
   menu.innerHTML =
     '<div style="padding:11px 16px 7px;font-size:11px;letter-spacing:0.09em;text-transform:uppercase;color:#9e9890;font-family:\'DM Sans\',sans-serif;border-bottom:1px solid rgba(26,35,50,0.08);">Export as</div>' +
+    '<button onclick="var m=document.getElementById(\'export-menu\');if(m)m.remove();shareReport();" style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;background:none;border:none;border-bottom:1px solid rgba(26,35,50,0.07);font-size:14px;font-family:\'DM Sans\',sans-serif;color:#1a2332;cursor:pointer;text-align:left;">' +
+    '<svg width="16" height="16" fill="none" stroke="#1a2332" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>' +
+    '<div><div style="font-weight:500;">Share / Email</div><div style="font-size:11px;color:#9e9890;margin-top:1px;">iOS share sheet - Mail, AirDrop, etc.</div></div></button>' +
     '<button onclick="var m=document.getElementById(\'export-menu\');if(m)m.remove();exportHTMLReport();" style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;background:none;border:none;border-bottom:1px solid rgba(26,35,50,0.07);font-size:14px;font-family:\'DM Sans\',sans-serif;color:#1a2332;cursor:pointer;text-align:left;">' +
     '<svg width="16" height="16" fill="none" stroke="#c9a84c" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
     '<div><div style="font-weight:500;">PDF Report</div><div style="font-size:11px;color:#9e9890;margin-top:1px;">Formatted - includes photos</div></div></button>' +
@@ -550,8 +572,7 @@ function exportExcel() {
 }
 
 /* ============================================================ PDF REPORT */
-function exportHTMLReport() {
-  if (!S.units.length) return;
+function buildReportHTML() {
   const cats = S.categories;
   const date = fmtDate(S.date);
   const condLabel = c => ({ good:'Good', fair:'Fair', poor:'Poor', na:'N/A' }[c] || '');
@@ -676,9 +697,49 @@ function exportHTMLReport() {
     '<div style="font-size:12px;color:#b8b2a8;">Generated ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + '</div>' +
     '</div></div></body></html>';
 
+  return html;
+}
+
+function exportHTMLReport() {
+  if (!S.units.length) return;
+  const html = buildReportHTML();
   const blob = new Blob([html], { type: 'text/html' });
   window.open(URL.createObjectURL(blob), '_blank');
   showToast('Report opened -- print or save as PDF');
+}
+
+/* ============================================================ SHARE (Web Share API) */
+async function shareReport() {
+  if (!S.units.length) { showToast('No data to share.'); return; }
+  if (!navigator.share && !navigator.canShare) {
+    showToast('Sharing not supported on this browser -- use Export instead.');
+    return;
+  }
+  // Build the report HTML (reuse same logic)
+  showToast('Preparing report...');
+  const html = buildReportHTML();
+  const blob = new Blob([html], { type: 'text/html' });
+  const fname = sanit(S.property) + '_walkthrough_' + (S.date || new Date().toISOString().split('T')[0]) + '.html';
+  const file = new File([blob], fname, { type: 'text/html' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: 'Walkthrough Report - ' + S.property,
+        text: 'Unit walkthrough report for ' + S.property + ' inspected by ' + (S.inspector || 'Greysteel') + ' on ' + fmtDate(S.date),
+        files: [file]
+      });
+    } else {
+      // Fallback: share URL only (no file attachment)
+      const url = URL.createObjectURL(blob);
+      await navigator.share({
+        title: 'Walkthrough Report - ' + S.property,
+        text: 'Unit walkthrough report for ' + S.property,
+        url: url
+      });
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') showToast('Could not share -- try Export instead.');
+  }
 }
 
 /* ============================================================ EXCEL */
