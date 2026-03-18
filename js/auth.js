@@ -27,10 +27,7 @@ async function hashPassword(pw) {
 }
 
 async function checkPassword(pw) {
-  const hash = await hashPassword(pw);
-  // Compare against hardcoded hash of "greysteel2024"
-  // Replace this string with your own hash to change the password
-  return hash === '8b5f94e2a3c7d1b4f6e0291a5c8d3b7e4f2a9c1d5e8b3f7a2d4c6e1b9f3a5d7';
+  return pw === 'greysteel2024';
 }
 
 function isAuthed() {
