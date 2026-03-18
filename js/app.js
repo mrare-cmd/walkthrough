@@ -118,9 +118,7 @@ function showErr(msg) { const e = document.getElementById('setup-error'); e.text
 function afterStart() {
   document.getElementById('nav-prop-name').textContent = S.property;
   document.getElementById('btn-export-nav').style.display = 'flex';
-  showScreen('screen-inspect');
-  renderUnitTabs();
-  renderInspectBody();
+  renderUnitTabs(); renderInspectBody();
 }
 
 /* ============================================================ TABS */
@@ -145,7 +143,6 @@ function renderUnitTabs() {
 function renderInspectBody() {
   const unit = S.units[S.activeUnit];
   const body = document.getElementById('inspect-body');
-  if (!body) return;
   body.innerHTML = '';
   S.categories.forEach(cat => {
     const entry = S.data[unit][cat];
