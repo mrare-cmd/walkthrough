@@ -10,14 +10,17 @@
 </head>
 <body class="app-page">
 
-  <!-- NAV -->
   <header class="app-nav">
     <div class="nav-inner">
       <div class="gs-wordmark-sm">GREY<span>STEEL</span></div>
       <div class="nav-center" id="nav-prop-name"></div>
       <div class="nav-actions">
-        <button class="btn-ghost" id="btn-save-draft" onclick="saveDraft()" title="Save draft">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <button class="btn-ghost btn-export-always" id="btn-export-nav" onclick="exportExcel()" style="display:none;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export Excel
+        </button>
+        <button class="btn-ghost" onclick="saveDraft()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           Save draft
         </button>
         <button class="btn-ghost" onclick="logout()">Sign out</button>
@@ -27,50 +30,46 @@
 
   <main class="app-main">
 
-    <!-- SCREEN: Setup -->
+    <!-- SETUP -->
     <section id="screen-setup" class="screen active">
       <div class="screen-inner">
         <div class="screen-header">
           <h1 class="screen-title">New walkthrough</h1>
           <p class="screen-sub">Configure the property and inspection categories before you begin.</p>
         </div>
-
         <div class="two-col">
-
           <div class="setup-col">
             <div class="form-card">
               <h2 class="form-card-title">Property details</h2>
               <div class="field-group">
-                <label class="field-label" for="prop-name">Property name</label>
+                <label class="field-label">Property name</label>
                 <input type="text" id="prop-name" class="field-input" placeholder="e.g. 604 12th Street NE">
               </div>
               <div class="field-group">
-                <label class="field-label" for="inspector-name">Inspector name</label>
+                <label class="field-label">Inspector name</label>
                 <input type="text" id="inspector-name" class="field-input" placeholder="Your name">
               </div>
               <div class="field-group">
-                <label class="field-label" for="insp-date">Date</label>
+                <label class="field-label">Date</label>
                 <input type="date" id="insp-date" class="field-input">
               </div>
             </div>
-
             <div class="form-card">
               <h2 class="form-card-title">Units to inspect</h2>
-              <p class="form-card-sub">Enter unit numbers, one per line. You can also paste from a spreadsheet column.</p>
+              <p class="form-card-sub">One unit per line. Paste from a spreadsheet column.</p>
               <div class="field-group">
-                <textarea id="units-input" class="field-input field-textarea" placeholder="101&#10;102&#10;103&#10;201&#10;202&#10;203"></textarea>
+                <textarea id="units-input" class="field-input field-textarea" placeholder="101&#10;102&#10;103&#10;201&#10;202"></textarea>
               </div>
               <div class="unit-count" id="unit-count">0 units</div>
             </div>
           </div>
-
           <div class="setup-col">
             <div class="form-card form-card--stretch">
               <div class="form-card-title-row">
                 <h2 class="form-card-title">Inspection categories</h2>
                 <button class="btn-text" onclick="resetCategories()">Reset to defaults</button>
               </div>
-              <p class="form-card-sub">Drag to reorder. These will appear in this order during the walkthrough.</p>
+              <p class="form-card-sub">Drag to reorder. Each becomes a row in the walkthrough.</p>
               <ul class="cat-list" id="setup-cat-list"></ul>
               <div class="cat-add-row">
                 <input type="text" id="new-cat-input" class="field-input" placeholder="Add a category...">
@@ -78,9 +77,7 @@
               </div>
             </div>
           </div>
-
         </div>
-
         <div class="setup-footer">
           <div id="setup-error" class="setup-error"></div>
           <button class="btn-primary-full setup-start" onclick="startWalkthrough()">
@@ -88,140 +85,106 @@
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           </button>
         </div>
-
       </div>
     </section>
 
-    <!-- SCREEN: Inspect -->
+    <!-- INSPECT -->
     <section id="screen-inspect" class="screen">
-      <div class="inspect-layout">
-
-        <!-- Sidebar -->
-        <aside class="inspect-sidebar">
-          <div class="sidebar-prop" id="sidebar-prop"></div>
-          <nav class="sidebar-units" id="sidebar-units"></nav>
-        </aside>
-
-        <!-- Main inspection panel -->
-        <div class="inspect-main">
-
-          <div class="inspect-topbar">
-            <div class="progress-wrap">
-              <div class="progress-track">
-                <div class="progress-fill" id="prog-fill"></div>
-              </div>
-              <span class="progress-label" id="prog-label"></span>
-            </div>
-          </div>
-
-          <div class="inspect-body">
-            <div class="inspect-unit-badge" id="inspect-unit-badge"></div>
-            <h2 class="inspect-cat-title" id="inspect-cat-title"></h2>
-
-            <div class="inspect-grid">
-
-              <div class="inspect-left">
-                <div class="field-group">
-                  <label class="field-label">Condition</label>
-                  <div class="condition-pills" id="condition-pills">
-                    <button class="cpill cpill--good" onclick="setPill(this,'good')">Good</button>
-                    <button class="cpill cpill--fair" onclick="setPill(this,'fair')">Fair</button>
-                    <button class="cpill cpill--poor" onclick="setPill(this,'poor')">Poor</button>
-                    <button class="cpill cpill--na" onclick="setPill(this,'na')">N/A</button>
-                  </div>
-                </div>
-
-                <div class="field-group">
-                  <label class="field-label" for="note-input">Notes</label>
-                  <textarea id="note-input" class="field-input field-textarea field-textarea--tall" placeholder="Describe condition, note needed repairs, observations..."></textarea>
-                </div>
-              </div>
-
-              <div class="inspect-right">
-                <div class="field-group">
-                  <label class="field-label">Photos</label>
-                  <div class="photo-zone" id="photo-zone" onclick="document.getElementById('photo-input').click()">
-                    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    <span>Tap to add photos</span>
-                  </div>
-                  <input type="file" id="photo-input" accept="image/*" multiple onchange="handlePhotos(event)" style="display:none">
-                  <div class="photo-grid" id="photo-grid"></div>
-                </div>
-
-                <div class="field-group">
-                  <label class="field-label">Voice note</label>
-                  <button class="voice-btn" id="voice-btn" onclick="toggleVoice()">
-                    <span class="voice-dot" id="voice-dot"></span>
-                    <span id="voice-label">Record voice note</span>
-                  </button>
-                  <div class="voice-status" id="voice-status"></div>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <div class="inspect-footer">
-            <button class="btn-secondary" id="btn-prev" onclick="prevEntry()">
-              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-              Back
-            </button>
-            <div class="cat-dots" id="cat-dots"></div>
-            <button class="btn-primary" id="btn-next" onclick="nextEntry()">
-              <span id="btn-next-label">Next</span>
-              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-            </button>
-          </div>
-
+      <div class="inspect-toolbar">
+        <div class="inspect-toolbar-left">
+          <span class="inspect-prop-label" id="toolbar-prop"></span>
+          <span class="inspect-progress-text" id="toolbar-progress"></span>
+        </div>
+        <div class="inspect-toolbar-right">
+          <button class="btn-secondary btn-sm" onclick="populateSetupFromState(); showScreen('screen-setup');">Edit setup</button>
+          <button class="btn-gold btn-sm" onclick="finishWalkthrough()">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            Finish &amp; view summary
+          </button>
         </div>
       </div>
+
+      <div class="unit-tab-bar" id="unit-tab-bar"></div>
+
+      <div class="inspect-grid-wrap" id="inspect-grid-wrap"></div>
     </section>
 
-    <!-- SCREEN: Summary -->
+    <!-- SUMMARY -->
     <section id="screen-summary" class="screen">
       <div class="screen-inner">
         <div class="screen-header">
           <h1 class="screen-title" id="summary-title"></h1>
           <p class="screen-sub" id="summary-sub"></p>
         </div>
-
         <div class="summary-stats" id="summary-stats"></div>
-
         <div class="summary-actions">
           <button class="btn-primary-lg" onclick="exportExcel()">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export to Excel
           </button>
-          <button class="btn-secondary-lg" onclick="addMoreUnits()">Add more units</button>
+          <button class="btn-secondary-lg" onclick="showScreen('screen-inspect');">Back to walkthrough</button>
           <button class="btn-ghost-lg" onclick="newWalkthrough()">New walkthrough</button>
         </div>
-
         <div class="unit-review-table">
           <div class="urt-header">
-            <span>Unit</span>
-            <span>Items logged</span>
-            <span>Photos</span>
-            <span>Poor condition</span>
-            <span></span>
+            <span>Unit</span><span>Items logged</span><span>Photos</span><span>Poor items</span><span></span>
           </div>
           <div id="unit-review-rows"></div>
         </div>
-
       </div>
     </section>
 
   </main>
 
-  <!-- Image lightbox -->
+  <!-- Note/Photo modal -->
+  <div id="note-modal" class="modal-overlay" onclick="handleModalOverlayClick(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div>
+          <div class="modal-unit-badge" id="modal-unit-badge"></div>
+          <h3 class="modal-title" id="modal-title"></h3>
+        </div>
+        <button class="modal-close" onclick="closeNoteModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="field-group">
+          <label class="field-label">Notes</label>
+          <textarea id="modal-note" class="field-input field-textarea field-textarea--tall" placeholder="Describe condition, note needed repairs, observations..."></textarea>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Photos</label>
+          <div class="photo-zone" onclick="document.getElementById('modal-photo-input').click()">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span>Tap to add photos</span>
+          </div>
+          <input type="file" id="modal-photo-input" accept="image/*" multiple onchange="handleModalPhotos(event)" style="display:none">
+          <div class="photo-grid" id="modal-photo-grid"></div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Voice note</label>
+          <button class="voice-btn" id="voice-btn" onclick="toggleVoice()">
+            <span class="voice-dot" id="voice-dot"></span>
+            <span id="voice-label">Record voice note</span>
+          </button>
+          <div class="voice-status" id="voice-status"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeNoteModal()">Discard</button>
+        <button class="btn-primary" onclick="saveNoteModal()">Save</button>
+      </div>
+    </div>
+  </div>
+
   <div id="lightbox" class="lightbox" onclick="closeLightbox()">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
     <img id="lightbox-img" src="" alt="">
   </div>
 
-  <!-- Draft restored toast -->
   <div class="toast" id="toast"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
