@@ -143,6 +143,7 @@ function renderUnitTabs() {
 function renderInspectBody() {
   const unit = S.units[S.activeUnit];
   const body = document.getElementById('inspect-body');
+  if (!body) return;
   body.innerHTML = '';
   S.categories.forEach(cat => {
     const entry = S.data[unit][cat];
