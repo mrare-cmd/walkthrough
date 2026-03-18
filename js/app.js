@@ -340,11 +340,11 @@ function exportExcel() {
   menu.style.cssText = 'position:fixed;top:54px;right:12px;background:#fff;border:1px solid rgba(26,35,50,0.15);border-radius:12px;box-shadow:0 8px 28px rgba(26,35,50,0.16);z-index:400;min-width:230px;overflow:hidden;';
   menu.innerHTML = `
     <div style="padding:11px 16px 7px;font-size:11px;letter-spacing:0.09em;text-transform:uppercase;color:#9e9890;font-family:'DM Sans',sans-serif;border-bottom:1px solid rgba(26,35,50,0.08);">Export as</div>
-    <button onclick="exportHTMLReport();document.getElementById('export-menu').remove();" style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;background:none;border:none;border-bottom:1px solid rgba(26,35,50,0.07);font-size:14px;font-family:'DM Sans',sans-serif;color:#1a2332;cursor:pointer;text-align:left;">
+    <button onclick="var m=document.getElementById('export-menu');if(m)m.remove();exportHTMLReport();" style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;background:none;border:none;border-bottom:1px solid rgba(26,35,50,0.07);font-size:14px;font-family:'DM Sans',sans-serif;color:#1a2332;cursor:pointer;text-align:left;">
       <svg width="16" height="16" fill="none" stroke="#c9a84c" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       <div><div style="font-weight:500;">PDF Report</div><div style="font-size:11px;color:#9e9890;margin-top:1px;">Formatted · includes photos</div></div>
     </button>
-    <button onclick="exportPlainExcel();document.getElementById('export-menu').remove();" style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;background:none;border:none;font-size:14px;font-family:'DM Sans',sans-serif;color:#1a2332;cursor:pointer;text-align:left;">
+    <button onclick="var m=document.getElementById('export-menu');if(m)m.remove();exportPlainExcel();" style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;background:none;border:none;font-size:14px;font-family:'DM Sans',sans-serif;color:#1a2332;cursor:pointer;text-align:left;">
       <svg width="16" height="16" fill="none" stroke="#1a2332" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
       <div><div style="font-weight:500;">Excel spreadsheet</div><div style="font-size:11px;color:#9e9890;margin-top:1px;">Data only · no photos</div></div>
     </button>`;
@@ -415,6 +415,14 @@ function exportHTMLReport() {
       </div>`;
   });
 
+  // Calculate totals first (needed in photo appendix header)
+  let totalPhotos = 0, totalPoor = 0;
+  S.units.forEach(u => cats.forEach(c => {
+    if (S.data[u][c]?.deleted) return;
+    totalPhotos += S.data[u][c].photos.length;
+    if (S.data[u][c].condition === 'poor') totalPoor++;
+  }));
+
   // Build photo appendix
   let photoAppendixItems = '';
   S.units.forEach(u => {
@@ -445,13 +453,6 @@ function exportHTMLReport() {
       </div>
       ${photoAppendixItems}
     </div>` : '';
-
-  let totalPhotos = 0, totalPoor = 0;
-  S.units.forEach(u => cats.forEach(c => {
-    if (S.data[u][c]?.deleted) return;
-    totalPhotos += S.data[u][c].photos.length;
-    if (S.data[u][c].condition === 'poor') totalPoor++;
-  }));
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -571,6 +572,67 @@ function exportPlainExcel() {
   XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
   XLSX.writeFile(wb, sanit(S.property)+'_walkthrough_'+(S.date||new Date().toISOString().split('T')[0])+'.xlsx');
   showToast('Excel exported');
+}
+
+
+/* ============================================================ SAMPLE DATA */
+function loadSampleData() {
+  // Tiny 1x1 solid color PNGs as base64 stand-ins for real photos
+  const RED_PX   = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==';
+  const BLUE_PX  = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const GREEN_PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+  document.getElementById('prop-name').value = '604 12th Street NE';
+  document.getElementById('inspector-name').value = 'Mason';
+  document.getElementById('insp-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('units-input').value = '101
+102
+201';
+  updateUnitCount();
+
+  const sampleData = {
+    '101': {
+      'Kitchen (appliances, cabinets, countertops)': { condition:'fair', note:'Cabinets show wear, door hinge loose on upper left. Appliances functional but dated — original install. Countertops have minor chip near sink.', photos:[RED_PX, BLUE_PX], deleted:false },
+      'Bathroom (tile, fixtures, vanity)': { condition:'poor', note:'Grout cracked along tub surround. One floor tile cracked. Vanity faucet drips — needs washer replacement.', photos:[GREEN_PX], deleted:false },
+      'Flooring': { condition:'fair', note:'Hardwood in living area has scuff marks and one loose board near entry. Carpet in bedroom worn at threshold.', photos:[], deleted:false },
+      'Windows & Doors': { condition:'good', note:'All windows operational, seals intact. Front door deadbolt stiff but functional.', photos:[], deleted:false },
+      'Walls & Ceilings': { condition:'good', note:'Minor scuff marks throughout, no cracks or water staining.', photos:[], deleted:false },
+      'HVAC / Mechanicals': { condition:'fair', note:'Filter overdue for replacement. Unit functional but rattles on startup.', photos:[RED_PX], deleted:false },
+      'Closets & Storage': { condition:'good', note:'', photos:[], deleted:false },
+      'General Unit Condition': { condition:'fair', note:'Unit is livable but needs cosmetic refresh before re-lease. Kitchen and bath are priority items.', photos:[], deleted:false },
+    },
+    '102': {
+      'Kitchen (appliances, cabinets, countertops)': { condition:'good', note:'Recently updated cabinets and countertops. All appliances clean and functional.', photos:[BLUE_PX], deleted:false },
+      'Bathroom (tile, fixtures, vanity)': { condition:'good', note:'Tile in good shape. Fixtures clean. Caulk fresh.', photos:[], deleted:false },
+      'Flooring': { condition:'poor', note:'LVT flooring has significant bubbling in kitchen — likely moisture issue underneath. Needs full replacement.', photos:[RED_PX, GREEN_PX], deleted:false },
+      'Windows & Doors': { condition:'good', note:'', photos:[], deleted:false },
+      'Walls & Ceilings': { condition:'fair', note:'Water stain on bedroom ceiling approx 12" diameter — source unclear, may be from unit above. Needs investigation.', photos:[RED_PX], deleted:false },
+      'HVAC / Mechanicals': { condition:'good', note:'New filter installed. System clean and quiet.', photos:[], deleted:false },
+      'Closets & Storage': { condition:'good', note:'', photos:[], deleted:false },
+      'General Unit Condition': { condition:'fair', note:'Overall good unit but flooring issue and ceiling stain need to be addressed before re-lease.', photos:[], deleted:false },
+    },
+    '201': {
+      'Kitchen (appliances, cabinets, countertops)': { condition:'poor', note:'Cabinet doors missing on two lower units. Dishwasher non-functional. Countertop has large burn mark near range.', photos:[RED_PX, BLUE_PX, GREEN_PX], deleted:false },
+      'Bathroom (tile, fixtures, vanity)': { condition:'poor', note:'Toilet runs continuously. Shower head missing. Tile has multiple cracks and missing grout throughout.', photos:[RED_PX], deleted:false },
+      'Flooring': { condition:'fair', note:'Carpet throughout — heavily worn and stained. Recommend replacement.', photos:[BLUE_PX], deleted:false },
+      'Windows & Doors': { condition:'fair', note:'Bedroom window has broken lock. Bathroom window does not seal fully.', photos:[], deleted:false },
+      'Walls & Ceilings': { condition:'poor', note:'Multiple holes in drywall in living room. Paint peeling in bathroom. Significant water damage on kitchen ceiling.', photos:[RED_PX, GREEN_PX], deleted:false },
+      'HVAC / Mechanicals': { condition:'poor', note:'AC unit not cooling. Thermostat unresponsive. Needs full service call or replacement.', photos:[], deleted:false },
+      'Closets & Storage': { condition:'fair', note:'Closet rod missing in master. Door off track.', photos:[], deleted:false },
+      'General Unit Condition': { condition:'poor', note:'Unit is in poor condition and not rentable as-is. Significant capex required — estimate 2-3 weeks minimum turn time.', photos:[], deleted:false },
+    }
+  };
+
+  S.property = '604 12th Street NE';
+  S.inspector = 'Mason';
+  S.date = new Date().toISOString().split('T')[0];
+  S.units = ['101','102','201'];
+  S.categories = [...DEFAULT_CATEGORIES];
+  S.data = sampleData;
+  S.activeUnit = 0;
+
+  showScreen('screen-inspect');
+  afterStart();
 }
 
 /* ============================================================ UTILS */
