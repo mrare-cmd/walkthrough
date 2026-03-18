@@ -333,212 +333,218 @@ function newWalkthrough() {
   updateUnitCount(); renderSetupCatList(); showScreen('screen-setup');
 }
 
-/* ============================================================ EXCEL EXPORT */
+/* ============================================================ EXPORT BUTTONS */
 function exportExcel() {
+  // Show export options
+  const existing = document.getElementById('export-menu');
+  if (existing) { existing.remove(); return; }
+  if (!S.units.length) { showToast('No data to export.'); return; }
+
+  const menu = document.createElement('div');
+  menu.id = 'export-menu';
+  menu.style.cssText = 'position:fixed;top:54px;right:12px;background:#fff;border:1px solid rgba(26,35,50,0.15);border-radius:10px;box-shadow:0 8px 24px rgba(26,35,50,0.14);z-index:400;min-width:220px;overflow:hidden;';
+  menu.innerHTML = `
+    <div style="padding:10px 14px 6px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#9e9890;font-family:'DM Sans',sans-serif;">Export as</div>
+    <button onclick="exportHTMLReport();document.getElementById('export-menu').remove();" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:none;font-size:14px;font-family:'DM Sans',sans-serif;color:#1a2332;cursor:pointer;text-align:left;border-top:1px solid rgba(26,35,50,0.08);">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      PDF Report <span style="font-size:11px;color:#9e9890;margin-left:auto;">with photos</span>
+    </button>
+    <button onclick="exportPlainExcel();document.getElementById('export-menu').remove();" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:none;font-size:14px;font-family:'DM Sans',sans-serif;color:#1a2332;cursor:pointer;text-align:left;border-top:1px solid rgba(26,35,50,0.08);">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      Excel / CSV <span style="font-size:11px;color:#9e9890;margin-left:auto;">data only</span>
+    </button>`;
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', function h(e) { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', h); } }), 50);
+}
+
+/* ============================================================ HTML REPORT (print to PDF) */
+function exportHTMLReport() {
+  if (!S.units.length) { showToast('No data to export.'); return; }
+  const cats = S.categories;
+  const date = fmtDate(S.date);
+
+  const condBadge = (c) => {
+    if (!c) return '';
+    const map = { good:['#2e7d32','#edf7ed'], fair:['#e65100','#fff8e1'], poor:['#c62828','#fff5f5'], na:['#6b6560','#ede9e1'] };
+    const [fg, bg] = map[c] || ['#6b6560','#ede9e1'];
+    return `<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:500;background:${bg};color:${fg};border:1px solid ${fg}40;">${cap(c)}</span>`;
+  };
+
+  let unitSections = '';
+  S.units.forEach(u => {
+    let rows = '';
+    cats.forEach(cat => {
+      const e = S.data[u][cat];
+      const photos = e.photos.map(src => `<img src="${src}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #ddd;margin:2px;">`).join('');
+      rows += `<tr>
+        <td style="padding:10px 14px;font-size:13px;font-weight:500;color:#1a2332;border-bottom:1px solid #ede9e1;width:200px;vertical-align:top;">${esc(cat)}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #ede9e1;vertical-align:top;width:100px;">${condBadge(e.condition)}</td>
+        <td style="padding:10px 14px;font-size:13px;color:#444;border-bottom:1px solid #ede9e1;vertical-align:top;line-height:1.5;">${esc(e.note || '')}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #ede9e1;vertical-align:top;">${photos}</td>
+      </tr>`;
+    });
+
+    const poor = cats.filter(c => S.data[u][c].condition === 'poor').length;
+    const good = cats.filter(c => S.data[u][c].condition === 'good').length;
+
+    unitSections += `
+      <div style="margin-bottom:32px;page-break-inside:avoid;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#1a2332;border-radius:10px 10px 0 0;">
+          <div style="font-size:16px;font-weight:500;color:#fff;letter-spacing:0.04em;">Unit ${esc(u)}</div>
+          <div style="display:flex;gap:8px;">
+            ${good ? `<span style="background:rgba(102,187,106,0.2);color:#66bb6a;font-size:11px;padding:3px 10px;border-radius:99px;">${good} Good</span>` : ''}
+            ${poor ? `<span style="background:rgba(229,115,115,0.2);color:#e57373;font-size:11px;padding:3px 10px;border-radius:99px;">${poor} Poor</span>` : ''}
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #ede9e1;border-top:none;border-radius:0 0 10px 10px;overflow:hidden;background:#fff;">
+          <thead>
+            <tr style="background:#f7f5f0;">
+              <th style="padding:8px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:#9e9890;text-align:left;font-weight:500;">Category</th>
+              <th style="padding:8px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:#9e9890;text-align:left;font-weight:500;">Condition</th>
+              <th style="padding:8px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:#9e9890;text-align:left;font-weight:500;">Notes</th>
+              <th style="padding:8px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:#9e9890;text-align:left;font-weight:500;">Photos</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  });
+
+  // Summary stats
+  let totalPhotos = 0, totalPoor = 0, totalGood = 0;
+  S.units.forEach(u => cats.forEach(c => {
+    totalPhotos += S.data[u][c].photos.length;
+    if (S.data[u][c].condition === 'poor') totalPoor++;
+    if (S.data[u][c].condition === 'good') totalGood++;
+  }));
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Walkthrough Report — ${esc(S.property)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', Arial, sans-serif; background: #f7f5f0; color: #1a2332; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @media print {
+    body { background: white; }
+    .no-print { display: none !important; }
+    .unit-block { page-break-inside: avoid; }
+  }
+  .page { max-width: 960px; margin: 0 auto; padding: 2rem; }
+  h1 { font-family: 'Cormorant Garamond', Georgia, serif; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Print button -->
+  <div class="no-print" style="margin-bottom:1.5rem;display:flex;gap:10px;align-items:center;">
+    <button onclick="window.print()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#1a2332;color:#fff;border:none;border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;cursor:pointer;">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print / Save as PDF
+    </button>
+    <span style="font-size:13px;color:#9e9890;">Use your browser's Print dialog → Save as PDF</span>
+  </div>
+
+  <!-- Header -->
+  <div style="background:#1a2332;border-radius:12px;padding:24px 28px;margin-bottom:28px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:12px;letter-spacing:0.18em;color:#c9a84c;margin-bottom:6px;">GREYSTEEL</div>
+        <h1 style="font-size:28px;font-weight:500;color:#fff;margin-bottom:4px;">${esc(S.property)}</h1>
+        <div style="font-size:14px;color:rgba(255,255,255,0.5);">Unit Walkthrough Report</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:4px;">Inspector</div>
+        <div style="font-size:15px;color:#fff;margin-bottom:10px;">${esc(S.inspector || '—')}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:4px;">Date</div>
+        <div style="font-size:15px;color:#fff;">${date}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;">
+    <div style="background:#fff;border-radius:10px;padding:16px;text-align:center;border:1px solid #ede9e1;">
+      <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:36px;font-weight:500;color:#1a2332;">${S.units.length}</div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:#9e9890;margin-top:4px;">Units</div>
+    </div>
+    <div style="background:#fff;border-radius:10px;padding:16px;text-align:center;border:1px solid #ede9e1;">
+      <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:36px;font-weight:500;color:#1a2332;">${cats.length}</div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:#9e9890;margin-top:4px;">Categories</div>
+    </div>
+    <div style="background:#fff;border-radius:10px;padding:16px;text-align:center;border:1px solid #ede9e1;">
+      <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:36px;font-weight:500;color:#c9a84c;">${totalPhotos}</div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:#9e9890;margin-top:4px;">Photos</div>
+    </div>
+    <div style="background:#fff;border-radius:10px;padding:16px;text-align:center;border:1px solid #ede9e1;">
+      <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:36px;font-weight:500;color:#c62828;">${totalPoor}</div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:#9e9890;margin-top:4px;">Poor items</div>
+    </div>
+  </div>
+
+  <!-- Unit sections -->
+  ${unitSections}
+
+  <!-- Footer -->
+  <div style="margin-top:32px;padding-top:16px;border-top:1px solid #ede9e1;display:flex;justify-content:space-between;font-size:12px;color:#9e9890;">
+    <span>Greysteel Commercial Real Estate</span>
+    <span>Generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</span>
+  </div>
+</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  showToast('Report opened — print or save as PDF');
+}
+
+/* ============================================================ PLAIN EXCEL */
+function exportPlainExcel() {
   if (!S.units.length) { showToast('No data to export.'); return; }
 
   const wb = XLSX.utils.book_new();
   const cats = S.categories;
 
-  /* ---- HELPERS ---- */
-  const NAVY  = 'FF1A2332';
-  const GOLD  = 'FFC9A84C';
-  const WHITE = 'FFFFFFFF';
-  const LIGHT = 'FFF7F5F0';
-  const GREEN_BG = 'FFEDF7ED'; const GREEN_FG = 'FF2E7D32';
-  const AMBER_BG = 'FFFFF8E1'; const AMBER_FG = 'FFE65100';
-  const RED_BG   = 'FFFFF5F5'; const RED_FG   = 'FFC62828';
-  const GRAY_BG  = 'FFEDE9E1'; const GRAY_FG  = 'FF6B6560';
-
-  function cell(v, opts = {}) {
-    const c = { v, t: typeof v === 'number' ? 'n' : 's' };
-    const s = {};
-    if (opts.bold || opts.header) { s.font = { ...(s.font || {}), bold: true }; }
-    if (opts.color) { s.font = { ...(s.font || {}), color: { rgb: opts.color } }; }
-    if (opts.sz)    { s.font = { ...(s.font || {}), sz: opts.sz }; }
-    if (opts.name)  { s.font = { ...(s.font || {}), name: opts.name }; }
-    if (opts.bg)    { s.fill = { fgColor: { rgb: opts.bg }, patternType: 'solid' }; }
-    if (opts.align) { s.alignment = { horizontal: opts.align, vertical: 'center', wrapText: true }; }
-    if (opts.wrap)  { s.alignment = { ...(s.alignment || {}), wrapText: true, vertical: 'top' }; }
-    if (opts.border) {
-      s.border = { top:{style:'thin',color:{rgb:'FFD3D1C7'}}, bottom:{style:'thin',color:{rgb:'FFD3D1C7'}}, left:{style:'thin',color:{rgb:'FFD3D1C7'}}, right:{style:'thin',color:{rgb:'FFD3D1C7'}} };
-    }
-    if (Object.keys(s).length) c.s = s;
-    return c;
-  }
-
-  function condStyle(cond) {
-    if (cond === 'good') return { bg: GREEN_BG, color: GREEN_FG };
-    if (cond === 'fair') return { bg: AMBER_BG, color: AMBER_FG };
-    if (cond === 'poor') return { bg: RED_BG,   color: RED_FG };
-    if (cond === 'na')   return { bg: GRAY_BG,  color: GRAY_FG };
-    return {};
-  }
-
-  /* ---- SHEET 1: WALKTHROUGH ---- */
-  const ws = {};
-  const ENC = XLSX.utils.encode_cell;
-  let r = 0;
-
-  // Title block
-  ws[ENC({r,c:0})] = cell('UNIT WALKTHROUGH REPORT', { bold:true, sz:16, color:WHITE, bg:NAVY, name:'Arial' });
-  r++;
-  ws[ENC({r,c:0})] = cell(S.property, { sz:12, color:WHITE, bg:NAVY, name:'Arial' });
-  r++;
-  ws[ENC({r,c:0})] = cell(`Inspector: ${S.inspector || '—'}   ·   Date: ${fmtDate(S.date)}   ·   Exported: ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}`, { sz:10, color:GOLD, bg:NAVY, name:'Arial' });
-  r += 2;
-
-  // Column header row
-  const hdrRow = r;
-  ws[ENC({r,c:0})] = cell('Unit', { bold:true, bg:NAVY, color:WHITE, align:'center', border:true, name:'Arial' });
-  let col = 1;
-  cats.forEach(cat => {
-    const shortCat = cat.length > 28 ? cat.substring(0, 26) + '…' : cat;
-    ws[ENC({r,c:col})]   = cell(shortCat + '\nCondition', { bold:true, bg:NAVY, color:GOLD, align:'center', wrap:true, border:true, name:'Arial' });
-    ws[ENC({r,c:col+1})] = cell(shortCat + '\nNotes',     { bold:true, bg:NAVY, color:WHITE, align:'center', wrap:true, border:true, name:'Arial' });
-    ws[ENC({r,c:col+2})] = cell(shortCat + '\nPhotos',    { bold:true, bg:NAVY, color:WHITE, align:'center', wrap:true, border:true, name:'Arial' });
-    col += 3;
-  });
-  r++;
-
-  // Data rows
-  S.units.forEach((u, ui) => {
-    const rowBg = ui % 2 === 0 ? WHITE : 'FFFAF9F7';
-    ws[ENC({r,c:0})] = cell(u, { bold:true, align:'center', bg:rowBg, border:true, name:'Arial' });
-    let dc = 1;
-    cats.forEach(cat => {
-      const e = S.data[u][cat];
-      const cs = condStyle(e.condition);
-      const condLabel = e.condition ? cap(e.condition) : '';
-      ws[ENC({r,c:dc})]   = cell(condLabel,       { align:'center', bg: cs.bg || rowBg, color: cs.color, border:true, name:'Arial' });
-      ws[ENC({r,c:dc+1})] = cell(e.note || '',    { wrap:true, bg:rowBg, border:true, name:'Arial' });
-      ws[ENC({r,c:dc+2})] = cell(e.photos.length ? `${e.photos.length} photo(s)` : '', { align:'center', bg:rowBg, border:true, name:'Arial' });
-      dc += 3;
-    });
-    r++;
-  });
-
-  const lastR = r - 1;
-  const lastC = 1 + cats.length * 3 - 1;
-  ws['!ref'] = XLSX.utils.encode_range({ s:{r:0,c:0}, e:{r:lastR,c:lastC} });
-
-  // Merges: title rows span all columns
-  const spanEnd = Math.min(lastC, 8);
-  ws['!merges'] = [
-    {s:{r:0,c:0},e:{r:0,c:spanEnd}},
-    {s:{r:1,c:0},e:{r:1,c:spanEnd}},
-    {s:{r:2,c:0},e:{r:2,c:spanEnd}},
-  ];
-
-  // Column widths
-  ws['!cols'] = [{ wch:10 }, ...cats.flatMap(() => [{ wch:14 },{ wch:36 },{ wch:14 }])];
-
-  // Row heights
-  ws['!rows'] = [];
-  for (let i = 0; i <= lastR; i++) {
-    if (i === 0) ws['!rows'].push({ hpt: 30 });
-    else if (i === 1) ws['!rows'].push({ hpt: 22 });
-    else if (i === 2) ws['!rows'].push({ hpt: 16 });
-    else if (i === 3) ws['!rows'].push({ hpt: 8 }); // spacer
-    else if (i === hdrRow) ws['!rows'].push({ hpt: 52 });
-    else ws['!rows'].push({ hpt: 22 });
-  }
-
-  XLSX.utils.book_append_sheet(wb, ws, 'Walkthrough');
-
-  /* ---- SHEET 2: SUMMARY ---- */
-  const ws2 = {};
-  let r2 = 0;
-
-  ws2[ENC({r:r2,c:0})] = cell('SUMMARY', { bold:true, sz:14, color:WHITE, bg:NAVY, name:'Arial' });
-  ws2[ENC({r:r2,c:1})] = cell('', { bg:NAVY });
-  ws2[ENC({r:r2,c:2})] = cell('', { bg:NAVY });
-  ws2[ENC({r:r2,c:3})] = cell('', { bg:NAVY });
-  ws2[ENC({r:r2,c:4})] = cell('', { bg:NAVY });
-  ws2[ENC({r:r2,c:5})] = cell('', { bg:NAVY });
-  r2 += 2;
-
-  [['Property', S.property],['Inspector', S.inspector||'—'],['Date', fmtDate(S.date)],['Units inspected', S.units.length],['Categories', S.categories.length]].forEach(([k,v]) => {
-    ws2[ENC({r:r2,c:0})] = cell(k, { bold:true, bg:LIGHT, border:true, name:'Arial' });
-    ws2[ENC({r:r2,c:1})] = cell(v, { border:true, name:'Arial' });
-    r2++;
-  });
-  r2++;
-
-  // Table header
-  ['Unit','Items Logged','Good','Fair','Poor','N/A','Photos'].forEach((h,ci) => {
-    ws2[ENC({r:r2,c:ci})] = cell(h, { bold:true, bg:NAVY, color:ci===4?'FFE57373':WHITE, align:'center', border:true, name:'Arial' });
-  });
-  r2++;
-  const sumStart = r2 + 1;
-
+  // Sheet 1: one row per unit, condition + notes per category
+  const headers = ['Property', 'Inspector', 'Date', 'Unit', ...cats.flatMap(c => [c + ' — Condition', c + ' — Notes'])];
+  const rows = [headers];
   S.units.forEach(u => {
-    const good  = cats.filter(c => S.data[u][c].condition==='good').length;
-    const fair  = cats.filter(c => S.data[u][c].condition==='fair').length;
-    const poor  = cats.filter(c => S.data[u][c].condition==='poor').length;
-    const na    = cats.filter(c => S.data[u][c].condition==='na').length;
-    const filled= cats.filter(c => S.data[u][c].condition||S.data[u][c].note).length;
-    const ph    = cats.reduce((s,c)=>s+S.data[u][c].photos.length,0);
-    [u,filled,good,fair,poor,na,ph].forEach((v,ci) => {
-      const opts = { border:true, name:'Arial', align: ci>0?'center':'left' };
-      if (ci===4&&poor>0) { opts.bg=RED_BG; opts.color=RED_FG; }
-      ws2[ENC({r:r2,c:ci})] = cell(v, opts);
-    });
-    r2++;
+    const row = [S.property, S.inspector, fmtDate(S.date), u];
+    cats.forEach(c => { const e = S.data[u][c]; row.push(e.condition ? cap(e.condition) : '', e.note || ''); });
+    rows.push(row);
   });
+  const ws1 = XLSX.utils.aoa_to_sheet(rows);
+  ws1['!cols'] = [{ wch:20 },{ wch:14 },{ wch:18 },{ wch:10 }, ...cats.flatMap(() => [{ wch:14 },{ wch:36 }])];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Walkthrough');
 
-  // Totals
-  const sumEnd = r2;
-  if (S.units.length > 0) {
-    ws2[ENC({r:r2,c:0})] = cell('TOTAL', { bold:true, bg:LIGHT, border:true, name:'Arial' });
-    for (let ci = 1; ci <= 6; ci++) {
-      const colLetter = String.fromCharCode(65 + ci);
-      ws2[ENC({r:r2,c:ci})] = { t:'n', f:`SUM(${colLetter}${sumStart}:${colLetter}${sumEnd})`, s:{ font:{bold:true,name:'Arial'}, fill:{fgColor:{rgb:LIGHT},patternType:'solid'}, border:{top:{style:'thin',color:{rgb:'FFD3D1C7'}},bottom:{style:'thin',color:{rgb:'FFD3D1C7'}},left:{style:'thin',color:{rgb:'FFD3D1C7'}},right:{style:'thin',color:{rgb:'FFD3D1C7'}}}, alignment:{horizontal:'center'} } };
-    }
-    r2++;
-  }
-
-  ws2['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:r2,c:6}});
-  ws2['!cols'] = [{wch:14},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}];
-  ws2['!rows'] = [{hpt:28},{hpt:6}];
-  ws2['!merges'] = [{s:{r:0,c:0},e:{r:0,c:5}}];
+  // Sheet 2: summary per unit
+  const sum = [['Unit','Items Logged','Good','Fair','Poor','N/A','Photos']];
+  S.units.forEach(u => {
+    sum.push([
+      u,
+      cats.filter(c => S.data[u][c].condition || S.data[u][c].note).length,
+      cats.filter(c => S.data[u][c].condition === 'good').length,
+      cats.filter(c => S.data[u][c].condition === 'fair').length,
+      cats.filter(c => S.data[u][c].condition === 'poor').length,
+      cats.filter(c => S.data[u][c].condition === 'na').length,
+      cats.reduce((s, c) => s + S.data[u][c].photos.length, 0)
+    ]);
+  });
+  const totals = ['TOTAL'];
+  for (let ci = 1; ci <= 6; ci++) totals.push(sum.slice(1).reduce((t, r) => t + (r[ci] || 0), 0));
+  sum.push(totals);
+  const ws2 = XLSX.utils.aoa_to_sheet(sum);
+  ws2['!cols'] = [{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}];
   XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
 
-  /* ---- SHEET 3: PHOTO INDEX ---- */
-  let totalPh = 0;
-  S.units.forEach(u => cats.forEach(c => { totalPh += S.data[u][c].photos.length; }));
-
-  if (totalPh > 0) {
-    const ws3 = {};
-    let r3 = 0;
-    ws3[ENC({r:r3,c:0})] = cell('PHOTO INDEX', { bold:true, sz:13, color:WHITE, bg:NAVY, name:'Arial' });
-    ws3[ENC({r:r3,c:1})] = cell('', { bg:NAVY });
-    ws3[ENC({r:r3,c:2})] = cell('', { bg:NAVY });
-    ws3[ENC({r:r3,c:3})] = cell('', { bg:NAVY });
-    r3 += 2;
-    ['Unit','Category','Photo #','Reference'].forEach((h,ci) => {
-      ws3[ENC({r:r3,c:ci})] = cell(h, { bold:true, bg:NAVY, color:WHITE, border:true, name:'Arial' });
-    });
-    r3++;
-    S.units.forEach(u => {
-      cats.forEach(c => {
-        S.data[u][c].photos.forEach((_,idx) => {
-          [u, c, idx+1, `Unit_${u}_${c.replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_')}_photo${idx+1}.jpg`].forEach((v,ci) => {
-            ws3[ENC({r:r3,c:ci})] = cell(v, { border:true, name:'Arial', align:ci===2?'center':undefined });
-          });
-          r3++;
-        });
-      });
-    });
-    ws3['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:r3-1,c:3}});
-    ws3['!cols'] = [{wch:10},{wch:44},{wch:10},{wch:52}];
-    ws3['!merges'] = [{s:{r:0,c:0},e:{r:0,c:3}}];
-    XLSX.utils.book_append_sheet(wb, ws3, 'Photo Index');
-  }
-
-  const fname = sanit(S.property) + '_walkthrough_' + (S.date||new Date().toISOString().split('T')[0]) + '.xlsx';
+  const fname = sanit(S.property) + '_walkthrough_' + (S.date || new Date().toISOString().split('T')[0]) + '.xlsx';
   XLSX.writeFile(wb, fname);
-  showToast('Exported: ' + fname);
+  showToast('Excel exported');
 }
 
 /* ============================================================ UTILS */
