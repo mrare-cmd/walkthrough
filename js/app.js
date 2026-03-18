@@ -255,11 +255,36 @@ function closePhotoModal() { document.getElementById('photo-modal').classList.re
 function handlePhotoInput(e) {
   const unit = S.photoModalUnit, cat = S.photoModalCat; if (!unit || !cat) return;
   Array.from(e.target.files).forEach(file => {
-    const reader = new FileReader();
-    reader.onload = ev => { S.data[unit][cat].photos.push(ev.target.result); renderPhotoGrid(S.data[unit][cat].photos); };
-    reader.readAsDataURL(file);
+    compressPhoto(file, dataUrl => {
+      S.data[unit][cat].photos.push(dataUrl);
+      renderPhotoGrid(S.data[unit][cat].photos);
+    });
   });
   e.target.value = '';
+}
+
+function compressPhoto(file, callback) {
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const MAX = 1400; // max dimension in px
+    let w = img.width, h = img.height;
+    if (w > MAX || h > MAX) {
+      if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+      else       { w = Math.round(w * MAX / h); h = MAX; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    callback(canvas.toDataURL('image/jpeg', 0.82));
+  };
+  img.onerror = () => { // fallback: use original
+    const reader = new FileReader();
+    reader.onload = ev => callback(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+  img.src = url;
 }
 function renderPhotoGrid(photos) {
   const grid = document.getElementById('photo-modal-grid'); grid.innerHTML = '';
@@ -283,12 +308,23 @@ function closeLightbox() { document.getElementById('lightbox').classList.remove(
 /* ============================================================ DRAFT */
 function saveDraft(silent = false) {
   try {
+    // Strip photos from draft to avoid localStorage size limits.
+    // Photos live in memory only — they survive tab switches but not full page reloads.
+    const dataNoPhotos = {};
+    Object.keys(S.data).forEach(u => {
+      dataNoPhotos[u] = {};
+      Object.keys(S.data[u]).forEach(c => {
+        dataNoPhotos[u][c] = { ...S.data[u][c], photos: [] };
+      });
+    });
     localStorage.setItem(DRAFT_KEY, JSON.stringify({
       property: S.property, inspector: S.inspector, date: S.date,
-      units: S.units, categories: S.categories, data: S.data, activeUnit: S.activeUnit
+      units: S.units, categories: S.categories, data: dataNoPhotos, activeUnit: S.activeUnit
     }));
     if (!silent) showToast('Draft saved');
-  } catch (e) { showToast('Could not save — storage full?'); }
+  } catch (e) {
+    if (!silent) showToast('Draft saved (no photos — retake on reload)');
+  }
 }
 
 /* ============================================================ FINISH / SUMMARY */
@@ -577,10 +613,8 @@ function exportPlainExcel() {
 
 /* ============================================================ SAMPLE DATA */
 function loadSampleData() {
-  // Tiny 1x1 solid color PNGs as base64 stand-ins for real photos
-  const RED_PX   = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==';
-  const BLUE_PX  = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-  const GREEN_PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  // No placeholder photos — sample data uses empty arrays.
+  // Add real photos by tapping the Photos button on any card.
 
   document.getElementById('prop-name').value = '604 12th Street NE';
   document.getElementById('inspector-name').value = 'Mason';
@@ -592,31 +626,31 @@ function loadSampleData() {
 
   const sampleData = {
     '101': {
-      'Kitchen (appliances, cabinets, countertops)': { condition:'fair', note:'Cabinets show wear, door hinge loose on upper left. Appliances functional but dated — original install. Countertops have minor chip near sink.', photos:[RED_PX, BLUE_PX], deleted:false },
-      'Bathroom (tile, fixtures, vanity)': { condition:'poor', note:'Grout cracked along tub surround. One floor tile cracked. Vanity faucet drips — needs washer replacement.', photos:[GREEN_PX], deleted:false },
+      'Kitchen (appliances, cabinets, countertops)': { condition:'fair', note:'Cabinets show wear, door hinge loose on upper left. Appliances functional but dated — original install. Countertops have minor chip near sink.', photos:[], deleted:false },
+      'Bathroom (tile, fixtures, vanity)': { condition:'poor', note:'Grout cracked along tub surround. One floor tile cracked. Vanity faucet drips — needs washer replacement.', photos:[], deleted:false },
       'Flooring': { condition:'fair', note:'Hardwood in living area has scuff marks and one loose board near entry. Carpet in bedroom worn at threshold.', photos:[], deleted:false },
       'Windows & Doors': { condition:'good', note:'All windows operational, seals intact. Front door deadbolt stiff but functional.', photos:[], deleted:false },
       'Walls & Ceilings': { condition:'good', note:'Minor scuff marks throughout, no cracks or water staining.', photos:[], deleted:false },
-      'HVAC / Mechanicals': { condition:'fair', note:'Filter overdue for replacement. Unit functional but rattles on startup.', photos:[RED_PX], deleted:false },
+      'HVAC / Mechanicals': { condition:'fair', note:'Filter overdue for replacement. Unit functional but rattles on startup.', photos:[], deleted:false },
       'Closets & Storage': { condition:'good', note:'', photos:[], deleted:false },
       'General Unit Condition': { condition:'fair', note:'Unit is livable but needs cosmetic refresh before re-lease. Kitchen and bath are priority items.', photos:[], deleted:false },
     },
     '102': {
-      'Kitchen (appliances, cabinets, countertops)': { condition:'good', note:'Recently updated cabinets and countertops. All appliances clean and functional.', photos:[BLUE_PX], deleted:false },
+      'Kitchen (appliances, cabinets, countertops)': { condition:'good', note:'Recently updated cabinets and countertops. All appliances clean and functional.', photos:[], deleted:false },
       'Bathroom (tile, fixtures, vanity)': { condition:'good', note:'Tile in good shape. Fixtures clean. Caulk fresh.', photos:[], deleted:false },
-      'Flooring': { condition:'poor', note:'LVT flooring has significant bubbling in kitchen — likely moisture issue underneath. Needs full replacement.', photos:[RED_PX, GREEN_PX], deleted:false },
+      'Flooring': { condition:'poor', note:'LVT flooring has significant bubbling in kitchen — likely moisture issue underneath. Needs full replacement.', photos:[], deleted:false },
       'Windows & Doors': { condition:'good', note:'', photos:[], deleted:false },
-      'Walls & Ceilings': { condition:'fair', note:'Water stain on bedroom ceiling approx 12" diameter — source unclear, may be from unit above. Needs investigation.', photos:[RED_PX], deleted:false },
+      'Walls & Ceilings': { condition:'fair', note:'Water stain on bedroom ceiling approx 12" diameter — source unclear, may be from unit above. Needs investigation.', photos:[], deleted:false },
       'HVAC / Mechanicals': { condition:'good', note:'New filter installed. System clean and quiet.', photos:[], deleted:false },
       'Closets & Storage': { condition:'good', note:'', photos:[], deleted:false },
       'General Unit Condition': { condition:'fair', note:'Overall good unit but flooring issue and ceiling stain need to be addressed before re-lease.', photos:[], deleted:false },
     },
     '201': {
-      'Kitchen (appliances, cabinets, countertops)': { condition:'poor', note:'Cabinet doors missing on two lower units. Dishwasher non-functional. Countertop has large burn mark near range.', photos:[RED_PX, BLUE_PX, GREEN_PX], deleted:false },
-      'Bathroom (tile, fixtures, vanity)': { condition:'poor', note:'Toilet runs continuously. Shower head missing. Tile has multiple cracks and missing grout throughout.', photos:[RED_PX], deleted:false },
-      'Flooring': { condition:'fair', note:'Carpet throughout — heavily worn and stained. Recommend replacement.', photos:[BLUE_PX], deleted:false },
+      'Kitchen (appliances, cabinets, countertops)': { condition:'poor', note:'Cabinet doors missing on two lower units. Dishwasher non-functional. Countertop has large burn mark near range.', photos:[], deleted:false },
+      'Bathroom (tile, fixtures, vanity)': { condition:'poor', note:'Toilet runs continuously. Shower head missing. Tile has multiple cracks and missing grout throughout.', photos:[], deleted:false },
+      'Flooring': { condition:'fair', note:'Carpet throughout — heavily worn and stained. Recommend replacement.', photos:[], deleted:false },
       'Windows & Doors': { condition:'fair', note:'Bedroom window has broken lock. Bathroom window does not seal fully.', photos:[], deleted:false },
-      'Walls & Ceilings': { condition:'poor', note:'Multiple holes in drywall in living room. Paint peeling in bathroom. Significant water damage on kitchen ceiling.', photos:[RED_PX, GREEN_PX], deleted:false },
+      'Walls & Ceilings': { condition:'poor', note:'Multiple holes in drywall in living room. Paint peeling in bathroom. Significant water damage on kitchen ceiling.', photos:[], deleted:false },
       'HVAC / Mechanicals': { condition:'poor', note:'AC unit not cooling. Thermostat unresponsive. Needs full service call or replacement.', photos:[], deleted:false },
       'Closets & Storage': { condition:'fair', note:'Closet rod missing in master. Door off track.', photos:[], deleted:false },
       'General Unit Condition': { condition:'poor', note:'Unit is in poor condition and not rentable as-is. Significant capex required — estimate 2-3 weeks minimum turn time.', photos:[], deleted:false },

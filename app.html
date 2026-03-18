@@ -79,7 +79,7 @@
         </div>
         <div class="setup-footer">
           <div id="setup-error" class="setup-error"></div>
-          <button class="btn-text" onclick="loadSampleData()" style="font-size:13px;color:#9e9890;text-decoration:none;margin-bottom:4px;">
+          <button class="btn-text" id="btn-sample-data" style="font-size:13px;color:#9e9890;text-decoration:none;margin-bottom:4px;">
             Load sample data for testing →
           </button>
           <button class="btn-primary-full setup-start" onclick="startWalkthrough()">
@@ -195,5 +195,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/app.js"></script>
+  <script>
+    document.getElementById('btn-sample-data').addEventListener('click', function() {
+      loadSampleData();
+    });
+  </script>
 </body>
 </html>
