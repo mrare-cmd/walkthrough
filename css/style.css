@@ -278,3 +278,14 @@ button { cursor: pointer; font-family: var(--font-ui); }
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--warm-gray); border-radius: 99px; }
+
+/* ============================================================ CAT DELETE BUTTON */
+.cat-delete-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex-shrink: 0;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--text-muted);
+  cursor: pointer; transition: all 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.cat-delete-btn:hover { background: #fff5f5; color: #c62828; border-color: rgba(198,40,40,0.3); }
