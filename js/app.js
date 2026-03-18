@@ -1,9 +1,8 @@
 /* ============================================================
-   Greysteel Unit Walkthrough — app.js v2
-   Free-form grid inspection + professional Excel export
+   Greysteel Unit Walkthrough — app.js v3
    ============================================================ */
 
-const DRAFT_KEY = 'gs_walkthrough_draft_v2';
+const DRAFT_KEY = 'gs_wt_v3';
 
 const DEFAULT_CATEGORIES = [
   'Kitchen (appliances, cabinets, countertops)',
@@ -16,19 +15,14 @@ const DEFAULT_CATEGORIES = [
   'General Unit Condition'
 ];
 
-let state = {
-  property: '',
-  inspector: '',
-  date: '',
-  units: [],
-  categories: [...DEFAULT_CATEGORIES],
+let S = {
+  property: '', inspector: '', date: '',
+  units: [], categories: [...DEFAULT_CATEGORIES],
   data: {},
   activeUnit: 0,
-  recording: false,
-  mediaRecorder: null,
-  audioChunks: [],
-  modalUnit: null,
-  modalCat: null
+  recording: false, mediaRecorder: null, audioChunks: [],
+  modalUnit: null, modalCat: null,
+  photoModalUnit: null, photoModalCat: null
 };
 
 /* ============================================================ INIT */
@@ -38,593 +32,519 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('units-input').addEventListener('input', updateUnitCount);
   document.getElementById('new-cat-input').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } });
 
-  const draft = localStorage.getItem(DRAFT_KEY);
-  if (draft) {
-    try {
-      const parsed = JSON.parse(draft);
-      if (parsed && parsed.units && parsed.units.length > 0) {
-        if (confirm(`Restore draft walkthrough for "${parsed.property}"?`)) {
-          state = { ...parsed, recording: false, mediaRecorder: null, audioChunks: [], modalUnit: null, modalCat: null };
-          document.getElementById('btn-export-nav').style.display = 'flex';
-          document.getElementById('nav-prop-name').textContent = state.property;
-          renderUnitTabs();
-          renderInspectGrid();
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && p.units && p.units.length) {
+        if (confirm(`Restore draft for "${p.property}"?`)) {
+          S = { ...p, recording: false, mediaRecorder: null, audioChunks: [], modalUnit: null, modalCat: null, photoModalUnit: null, photoModalCat: null };
+          afterStart();
           showScreen('screen-inspect');
-        } else {
-          localStorage.removeItem(DRAFT_KEY);
-        }
+        } else { localStorage.removeItem(DRAFT_KEY); }
       }
-    } catch (e) { localStorage.removeItem(DRAFT_KEY); }
-  }
+    }
+  } catch (e) { localStorage.removeItem(DRAFT_KEY); }
 });
 
 /* ============================================================ SETUP */
 function updateUnitCount() {
-  const u = getUnitsFromInput();
-  document.getElementById('unit-count').textContent = `${u.length} unit${u.length !== 1 ? 's' : ''}`;
+  const u = getUnits(); document.getElementById('unit-count').textContent = `${u.length} unit${u.length !== 1 ? 's' : ''}`;
 }
-
-function getUnitsFromInput() {
-  return document.getElementById('units-input').value.split('\n').map(u => u.trim()).filter(Boolean);
+function getUnits() {
+  return document.getElementById('units-input').value.split('\n').map(s => s.trim()).filter(Boolean);
 }
 
 function renderSetupCatList() {
-  const ul = document.getElementById('setup-cat-list');
-  ul.innerHTML = '';
-  state.categories.forEach((cat, i) => {
-    const li = document.createElement('li');
-    li.className = 'cat-item';
-    li.draggable = true;
-    li.dataset.idx = i;
-    li.innerHTML = `
-      <span class="drag-handle">&#8942;&#8942;</span>
-      <input type="text" value="${escHtml(cat)}" onchange="state.categories[${i}]=this.value.trim()">
-      <button class="btn-icon btn-icon--danger" onclick="removeCategory(${i})" title="Remove">
-        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>`;
-    attachDragEvents(li);
-    ul.appendChild(li);
+  const ul = document.getElementById('setup-cat-list'); ul.innerHTML = '';
+  S.categories.forEach((cat, i) => {
+    const li = document.createElement('li'); li.className = 'cat-item'; li.draggable = true; li.dataset.idx = i;
+    li.innerHTML = `<span class="drag-handle">&#8942;&#8942;</span><input type="text" value="${esc(cat)}" onchange="S.categories[${i}]=this.value.trim()"><button class="btn-icon btn-icon--danger" onclick="removeCategory(${i})"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+    attachDrag(li); ul.appendChild(li);
   });
 }
 
-let dragSrc = null;
-function attachDragEvents(li) {
-  li.addEventListener('dragstart', e => { dragSrc = li; e.dataTransfer.effectAllowed = 'move'; li.style.opacity = '0.45'; });
+let _dragSrc = null;
+function attachDrag(li) {
+  li.addEventListener('dragstart', e => { _dragSrc = li; e.dataTransfer.effectAllowed = 'move'; li.style.opacity = '0.4'; });
   li.addEventListener('dragend', () => { li.style.opacity = '1'; });
-  li.addEventListener('dragover', e => { e.preventDefault(); });
+  li.addEventListener('dragover', e => e.preventDefault());
   li.addEventListener('drop', e => {
-    e.preventDefault();
-    if (dragSrc === li) return;
-    const si = parseInt(dragSrc.dataset.idx), di = parseInt(li.dataset.idx);
-    const moved = state.categories.splice(si, 1)[0];
-    state.categories.splice(di, 0, moved);
+    e.preventDefault(); if (_dragSrc === li) return;
+    const si = +_dragSrc.dataset.idx, di = +li.dataset.idx;
+    S.categories.splice(di, 0, S.categories.splice(si, 1)[0]);
     renderSetupCatList();
   });
 }
 
 function addCategory() {
-  const inp = document.getElementById('new-cat-input');
-  const val = inp.value.trim();
-  if (!val) return;
-  state.categories.push(val);
-  inp.value = '';
-  renderSetupCatList();
+  const inp = document.getElementById('new-cat-input'), v = inp.value.trim();
+  if (!v) return; S.categories.push(v); inp.value = ''; renderSetupCatList();
 }
-
-function removeCategory(i) {
-  state.categories.splice(i, 1);
-  renderSetupCatList();
-}
-
-function resetCategories() {
-  if (confirm('Reset to default categories?')) { state.categories = [...DEFAULT_CATEGORIES]; renderSetupCatList(); }
-}
+function removeCategory(i) { S.categories.splice(i, 1); renderSetupCatList(); }
+function resetCategories() { if (confirm('Reset to defaults?')) { S.categories = [...DEFAULT_CATEGORIES]; renderSetupCatList(); } }
 
 function populateSetupFromState() {
-  document.getElementById('prop-name').value = state.property;
-  document.getElementById('inspector-name').value = state.inspector;
-  document.getElementById('insp-date').value = state.date;
-  document.getElementById('units-input').value = state.units.join('\n');
-  updateUnitCount();
-  renderSetupCatList();
+  document.getElementById('prop-name').value = S.property;
+  document.getElementById('inspector-name').value = S.inspector;
+  document.getElementById('insp-date').value = S.date;
+  document.getElementById('units-input').value = S.units.join('\n');
+  updateUnitCount(); renderSetupCatList();
 }
 
 function startWalkthrough() {
   const prop = document.getElementById('prop-name').value.trim();
   const inspector = document.getElementById('inspector-name').value.trim();
   const date = document.getElementById('insp-date').value;
-  const units = getUnitsFromInput();
+  const units = getUnits();
   const err = document.getElementById('setup-error');
-
-  if (!prop) { showSetupError('Please enter a property name.'); return; }
-  if (!units.length) { showSetupError('Please enter at least one unit number.'); return; }
-  if (!state.categories.length) { showSetupError('Please add at least one category.'); return; }
+  if (!prop) { showErr('Please enter a property name.'); return; }
+  if (!units.length) { showErr('Please enter at least one unit.'); return; }
+  if (!S.categories.length) { showErr('Please add at least one category.'); return; }
   err.classList.remove('visible');
 
   const newData = {};
   units.forEach(u => {
-    newData[u] = state.data[u] || {};
-    state.categories.forEach(c => {
-      if (!newData[u][c]) newData[u][c] = { condition: '', note: '', photos: [], voiceNote: null };
-    });
+    newData[u] = S.data[u] || {};
+    S.categories.forEach(c => { if (!newData[u][c]) newData[u][c] = { condition: '', note: '', photos: [], voiceNote: null }; });
   });
-
-  state.property = prop;
-  state.inspector = inspector;
-  state.date = date;
-  state.units = units;
-  state.data = newData;
-  state.activeUnit = 0;
-
-  document.getElementById('nav-prop-name').textContent = state.property;
-  document.getElementById('btn-export-nav').style.display = 'flex';
-
-  renderUnitTabs();
-  renderInspectGrid();
+  S.property = prop; S.inspector = inspector; S.date = date; S.units = units; S.data = newData; S.activeUnit = 0;
+  afterStart();
   showScreen('screen-inspect');
 }
 
-function showSetupError(msg) {
-  const err = document.getElementById('setup-error');
-  err.textContent = msg;
-  err.classList.add('visible');
+function showErr(msg) { const e = document.getElementById('setup-error'); e.textContent = msg; e.classList.add('visible'); }
+
+function afterStart() {
+  document.getElementById('nav-prop-name').textContent = S.property;
+  document.getElementById('btn-export-nav').style.display = 'flex';
+  renderUnitTabs(); renderInspectBody();
 }
 
-/* ============================================================ UNIT TABS */
+/* ============================================================ TABS */
 function renderUnitTabs() {
-  const bar = document.getElementById('unit-tab-bar');
-  bar.innerHTML = '';
-  state.units.forEach((u, i) => {
-    const allFilled = state.categories.every(c => state.data[u][c].condition);
+  const bar = document.getElementById('unit-tab-bar'); bar.innerHTML = '';
+  S.units.forEach((u, i) => {
+    const allDone = S.categories.every(c => S.data[u][c].condition);
     const btn = document.createElement('button');
-    btn.className = 'unit-tab' + (i === state.activeUnit ? ' active' : '') + (allFilled ? ' tab-complete' : '');
-    btn.innerHTML = `Unit ${escHtml(u)} <span class="tab-dot"></span>`;
-    btn.onclick = () => { state.activeUnit = i; renderUnitTabs(); renderInspectGrid(); };
+    btn.className = 'unit-tab' + (i === S.activeUnit ? ' active' : '') + (allDone ? ' tab-done' : '');
+    btn.innerHTML = `Unit ${esc(u)} <span class="tab-dot"></span>`;
+    btn.onclick = () => { S.activeUnit = i; renderUnitTabs(); renderInspectBody(); };
     bar.appendChild(btn);
   });
-
-  // Progress
-  let logged = 0, total = state.units.length * state.categories.length;
-  state.units.forEach(u => state.categories.forEach(c => { if (state.data[u][c].condition || state.data[u][c].note) logged++; }));
-  document.getElementById('toolbar-prop').textContent = state.property;
-  document.getElementById('toolbar-progress').textContent = `${logged} of ${total} items logged`;
+  // progress
+  let logged = 0, total = S.units.length * S.categories.length;
+  S.units.forEach(u => S.categories.forEach(c => { if (S.data[u][c].condition || S.data[u][c].note) logged++; }));
+  document.getElementById('toolbar-prop').textContent = S.property;
+  document.getElementById('toolbar-progress').textContent = `${logged}/${total}`;
 }
 
-/* ============================================================ INSPECTION GRID */
-function renderInspectGrid() {
-  const unit = state.units[state.activeUnit];
-  const wrap = document.getElementById('inspect-grid-wrap');
+/* ============================================================ INSPECT BODY */
+function renderInspectBody() {
+  const unit = S.units[S.activeUnit];
+  const body = document.getElementById('inspect-body');
+  body.innerHTML = '';
+  S.categories.forEach(cat => {
+    const entry = S.data[unit][cat];
+    const card = document.createElement('div');
+    card.className = 'cat-card' + condClass(entry.condition);
+    card.dataset.unit = unit; card.dataset.cat = cat;
 
-  const table = document.createElement('table');
-  table.className = 'inspect-table';
+    // TOP: name + pills
+    const top = document.createElement('div'); top.className = 'cat-card-top';
+    const name = document.createElement('div'); name.className = 'cat-card-name'; name.textContent = cat;
 
-  // Header
-  const thead = document.createElement('thead');
-  thead.innerHTML = `<tr>
-    <th>Category</th>
-    <th>Condition</th>
-    <th>Notes &amp; Photos</th>
-  </tr>`;
-  table.appendChild(thead);
-
-  // Body
-  const tbody = document.createElement('tbody');
-  state.categories.forEach(cat => {
-    const entry = state.data[unit][cat];
-    const tr = document.createElement('tr');
-
-    // Category name
-    const tdCat = document.createElement('td');
-    tdCat.className = 'cat-name-cell';
-    tdCat.textContent = cat;
-
-    // Condition dropdown
-    const tdCond = document.createElement('td');
-    const sel = document.createElement('select');
-    sel.className = 'cond-select';
-    sel.innerHTML = `
-      <option value="">— Select —</option>
-      <option value="good">Good</option>
-      <option value="fair">Fair</option>
-      <option value="poor">Poor</option>
-      <option value="na">N/A</option>`;
-    sel.value = entry.condition || '';
-    applyCondSelectStyle(sel);
-    sel.addEventListener('change', () => {
-      state.data[unit][cat].condition = sel.value;
-      applyCondSelectStyle(sel);
-      renderUnitTabs();
-      saveDraft(true);
+    const pills = document.createElement('div'); pills.className = 'cond-pills';
+    ['Good','Fair','Poor','N/A'].forEach(label => {
+      const btn = document.createElement('button');
+      const val = label.toLowerCase().replace('/', '');
+      btn.className = 'cpill' + (entry.condition === val ? ` active-${val}` : '');
+      btn.textContent = label;
+      btn.onclick = () => {
+        const cur = S.data[unit][cat].condition;
+        S.data[unit][cat].condition = cur === val ? '' : val;
+        renderInspectBody(); renderUnitTabs(); saveDraft(true);
+      };
+      pills.appendChild(btn);
     });
-    tdCond.appendChild(sel);
 
-    // Note + photo button
-    const tdAction = document.createElement('td');
-    tdAction.className = 'action-cell';
-    const hasContent = entry.note || entry.photos.length > 0 || entry.voiceNote;
-    const noteBtn = document.createElement('button');
-    noteBtn.className = 'note-btn' + (hasContent ? ' has-content' : '');
+    top.appendChild(name); top.appendChild(pills);
+
+    // BOTTOM: photo btn + note btn + note preview
+    const bottom = document.createElement('div'); bottom.className = 'cat-card-bottom';
+
     const photoCount = entry.photos.length;
-    noteBtn.innerHTML = hasContent
-      ? `<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-         Edit note${photoCount ? ` <span class="photo-count-badge">${photoCount}</span>` : ''}`
-      : `<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add note`;
+    const photoBtn = document.createElement('button');
+    photoBtn.className = 'action-btn' + (photoCount ? ' active' : '');
+    photoBtn.innerHTML = `<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Photos${photoCount ? ` <span class="photo-badge">${photoCount}</span>` : ''}`;
+    photoBtn.onclick = () => openPhotoModal(unit, cat);
+
+    const noteBtn = document.createElement('button');
+    const hasNote = !!entry.note;
+    noteBtn.className = 'action-btn' + (hasNote ? ' active' : '');
+    noteBtn.innerHTML = `<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Note`;
     noteBtn.onclick = () => openNoteModal(unit, cat);
-    tdAction.appendChild(noteBtn);
 
-    tr.appendChild(tdCat);
-    tr.appendChild(tdCond);
-    tr.appendChild(tdAction);
-    tbody.appendChild(tr);
+    bottom.appendChild(photoBtn);
+    bottom.appendChild(noteBtn);
+
+    if (hasNote) {
+      const preview = document.createElement('div');
+      preview.className = 'note-preview';
+      preview.textContent = entry.note;
+      bottom.appendChild(preview);
+    }
+
+    card.appendChild(top); card.appendChild(bottom);
+    body.appendChild(card);
   });
-
-  table.appendChild(tbody);
-  wrap.innerHTML = '';
-  wrap.appendChild(table);
 }
 
-function applyCondSelectStyle(sel) {
-  sel.className = 'cond-select';
-  if (sel.value === 'good') sel.classList.add('val-good');
-  else if (sel.value === 'fair') sel.classList.add('val-fair');
-  else if (sel.value === 'poor') sel.classList.add('val-poor');
-  else if (sel.value === 'na')   sel.classList.add('val-na');
+function condClass(c) {
+  if (!c) return '';
+  if (c === 'good') return ' has-condition cond-good';
+  if (c === 'fair') return ' has-condition cond-fair';
+  if (c === 'poor') return ' has-condition cond-poor';
+  if (c === 'na')   return ' has-condition cond-na';
+  return '';
 }
 
 /* ============================================================ NOTE MODAL */
 function openNoteModal(unit, cat) {
-  state.modalUnit = unit;
-  state.modalCat = cat;
-  const entry = state.data[unit][cat];
-
-  document.getElementById('modal-unit-badge').textContent = 'Unit ' + unit;
+  S.modalUnit = unit; S.modalCat = cat;
+  const entry = S.data[unit][cat];
+  document.getElementById('modal-badge').textContent = 'Unit ' + unit;
   document.getElementById('modal-title').textContent = cat;
   document.getElementById('modal-note').value = entry.note || '';
-
-  const vs = document.getElementById('voice-status');
-  vs.textContent = entry.voiceNote ? '✓ Voice note saved' : '';
-
-  renderModalPhotos(entry.photos);
-
-  const modal = document.getElementById('note-modal');
-  modal.classList.add('open');
-  setTimeout(() => document.getElementById('modal-note').focus(), 100);
+  document.getElementById('voice-status').textContent = entry.voiceNote ? '✓ Voice note saved' : '';
+  document.getElementById('note-modal').classList.add('open');
+  setTimeout(() => document.getElementById('modal-note').focus(), 150);
 }
-
-function handleModalOverlayClick(e) {
-  if (e.target === document.getElementById('note-modal')) closeNoteModal();
-}
-
+function handleModalOverlay(e) { if (e.target === document.getElementById('note-modal')) closeNoteModal(); }
 function closeNoteModal() {
   document.getElementById('note-modal').classList.remove('open');
-  if (state.recording) {
-    state.mediaRecorder && state.mediaRecorder.stop();
-    state.recording = false;
-    document.getElementById('voice-btn').classList.remove('recording');
-    document.getElementById('voice-label').textContent = 'Record voice note';
-  }
+  if (S.recording && S.mediaRecorder) { S.mediaRecorder.stop(); S.recording = false; document.getElementById('voice-btn').classList.remove('recording'); document.getElementById('voice-label').textContent = 'Record voice note'; }
 }
-
 function saveNoteModal() {
-  const unit = state.modalUnit;
-  const cat  = state.modalCat;
-  if (!unit || !cat) return;
-  state.data[unit][cat].note = document.getElementById('modal-note').value.trim();
-  closeNoteModal();
-  renderInspectGrid();
-  renderUnitTabs();
-  saveDraft(true);
+  if (!S.modalUnit || !S.modalCat) return;
+  S.data[S.modalUnit][S.modalCat].note = document.getElementById('modal-note').value.trim();
+  closeNoteModal(); renderInspectBody(); renderUnitTabs(); saveDraft(true);
 }
 
-function handleModalPhotos(e) {
-  const unit = state.modalUnit;
-  const cat  = state.modalCat;
-  if (!unit || !cat) return;
+/* ============================================================ PHOTO MODAL */
+function openPhotoModal(unit, cat) {
+  S.photoModalUnit = unit; S.photoModalCat = cat;
+  document.getElementById('photo-modal-badge').textContent = 'Unit ' + unit;
+  document.getElementById('photo-modal-title').textContent = cat;
+  renderPhotoGrid(S.data[unit][cat].photos);
+  document.getElementById('photo-modal').classList.add('open');
+}
+function handlePhotoModalOverlay(e) { if (e.target === document.getElementById('photo-modal')) closePhotoModal(); }
+function closePhotoModal() { document.getElementById('photo-modal').classList.remove('open'); renderInspectBody(); renderUnitTabs(); saveDraft(true); }
+
+function handlePhotoInput(e) {
+  const unit = S.photoModalUnit, cat = S.photoModalCat; if (!unit || !cat) return;
   Array.from(e.target.files).forEach(file => {
     const reader = new FileReader();
-    reader.onload = ev => {
-      state.data[unit][cat].photos.push(ev.target.result);
-      renderModalPhotos(state.data[unit][cat].photos);
-    };
+    reader.onload = ev => { S.data[unit][cat].photos.push(ev.target.result); renderPhotoGrid(S.data[unit][cat].photos); };
     reader.readAsDataURL(file);
   });
   e.target.value = '';
 }
 
-function renderModalPhotos(photos) {
-  const grid = document.getElementById('modal-photo-grid');
-  grid.innerHTML = '';
+function renderPhotoGrid(photos) {
+  const grid = document.getElementById('photo-modal-grid'); grid.innerHTML = '';
   photos.forEach((src, i) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'photo-thumb-wrap';
-    const img = document.createElement('img');
-    img.src = src; img.alt = `Photo ${i + 1}`;
-    img.onclick = () => openLightbox(src);
-    const del = document.createElement('button');
-    del.className = 'photo-remove'; del.textContent = '×';
-    del.onclick = ev => {
-      ev.stopPropagation();
-      state.data[state.modalUnit][state.modalCat].photos.splice(i, 1);
-      renderModalPhotos(state.data[state.modalUnit][state.modalCat].photos);
-    };
-    wrap.appendChild(img); wrap.appendChild(del);
-    grid.appendChild(wrap);
+    const wrap = document.createElement('div'); wrap.className = 'photo-thumb-wrap';
+    const img = document.createElement('img'); img.src = src; img.alt = ''; img.onclick = () => openLightbox(src);
+    const del = document.createElement('button'); del.className = 'photo-remove'; del.textContent = '×';
+    del.onclick = ev => { ev.stopPropagation(); S.data[S.photoModalUnit][S.photoModalCat].photos.splice(i, 1); renderPhotoGrid(S.data[S.photoModalUnit][S.photoModalCat].photos); };
+    wrap.appendChild(img); wrap.appendChild(del); grid.appendChild(wrap);
   });
 }
 
 /* ============================================================ VOICE */
 async function toggleVoice() {
-  const btn = document.getElementById('voice-btn');
-  const label = document.getElementById('voice-label');
-  const status = document.getElementById('voice-status');
-  if (!state.recording) {
+  const btn = document.getElementById('voice-btn'), lbl = document.getElementById('voice-label'), status = document.getElementById('voice-status');
+  if (!S.recording) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      state.mediaRecorder = new MediaRecorder(stream);
-      state.audioChunks = [];
-      state.mediaRecorder.ondataavailable = e => state.audioChunks.push(e.data);
-      state.mediaRecorder.onstop = () => {
-        const blob = new Blob(state.audioChunks, { type: 'audio/webm' });
+      S.mediaRecorder = new MediaRecorder(stream); S.audioChunks = [];
+      S.mediaRecorder.ondataavailable = e => S.audioChunks.push(e.data);
+      S.mediaRecorder.onstop = () => {
+        const blob = new Blob(S.audioChunks, { type: 'audio/webm' });
         const reader = new FileReader();
-        reader.onload = ev => {
-          state.data[state.modalUnit][state.modalCat].voiceNote = ev.target.result;
-          status.textContent = '✓ Voice note saved';
-        };
-        reader.readAsDataURL(blob);
-        stream.getTracks().forEach(t => t.stop());
+        reader.onload = ev => { S.data[S.modalUnit][S.modalCat].voiceNote = ev.target.result; status.textContent = '✓ Voice note saved'; };
+        reader.readAsDataURL(blob); stream.getTracks().forEach(t => t.stop());
       };
-      state.mediaRecorder.start();
-      state.recording = true;
-      btn.classList.add('recording');
-      label.textContent = 'Stop recording';
+      S.mediaRecorder.start(); S.recording = true; btn.classList.add('recording'); lbl.textContent = 'Stop recording';
     } catch (e) { status.textContent = 'Microphone access denied.'; }
   } else {
-    state.mediaRecorder.stop();
-    state.recording = false;
-    btn.classList.remove('recording');
-    label.textContent = 'Record voice note';
+    S.mediaRecorder.stop(); S.recording = false; btn.classList.remove('recording'); lbl.textContent = 'Record voice note';
   }
 }
 
 /* ============================================================ LIGHTBOX */
-function openLightbox(src) {
-  document.getElementById('lightbox-img').src = src;
-  document.getElementById('lightbox').classList.add('open');
-}
+function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox').classList.add('open'); }
 function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
 
 /* ============================================================ DRAFT */
 function saveDraft(silent = false) {
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({
-      property: state.property, inspector: state.inspector, date: state.date,
-      units: state.units, categories: state.categories,
-      data: state.data, activeUnit: state.activeUnit
-    }));
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ property: S.property, inspector: S.inspector, date: S.date, units: S.units, categories: S.categories, data: S.data, activeUnit: S.activeUnit }));
     if (!silent) showToast('Draft saved');
   } catch (e) { showToast('Could not save — storage full?'); }
 }
 
-/* ============================================================ FINISH / SUMMARY */
-function finishWalkthrough() {
-  saveDraft(true);
-  renderSummary();
-  showScreen('screen-summary');
-}
+/* ============================================================ FINISH */
+function finishWalkthrough() { saveDraft(true); renderSummary(); showScreen('screen-summary'); }
 
 function renderSummary() {
-  document.getElementById('summary-title').textContent = state.property;
-  document.getElementById('summary-sub').textContent =
-    `Inspected by ${state.inspector || 'Unknown'} · ${formatDate(state.date)}`;
-
-  let photos = 0, poor = 0, filled = 0;
-  state.units.forEach(u => state.categories.forEach(c => {
-    const e = state.data[u][c];
-    photos += e.photos.length;
-    if (e.condition === 'poor') poor++;
-    if (e.condition || e.note) filled++;
-  }));
-
+  document.getElementById('summary-title').textContent = S.property;
+  document.getElementById('summary-sub').textContent = `Inspected by ${S.inspector || '—'} · ${fmtDate(S.date)}`;
+  let photos = 0, poor = 0;
+  S.units.forEach(u => S.categories.forEach(c => { photos += S.data[u][c].photos.length; if (S.data[u][c].condition === 'poor') poor++; }));
   document.getElementById('summary-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-num">${state.units.length}</div><div class="stat-lbl">Units inspected</div></div>
-    <div class="stat-card"><div class="stat-num">${state.categories.length}</div><div class="stat-lbl">Categories</div></div>
-    <div class="stat-card"><div class="stat-num stat-num--gold">${photos}</div><div class="stat-lbl">Photos taken</div></div>
-    <div class="stat-card"><div class="stat-num stat-num--red">${poor}</div><div class="stat-lbl">Poor condition items</div></div>`;
-
-  const tbody = document.getElementById('unit-review-rows');
-  tbody.innerHTML = '';
-  state.units.forEach((u, i) => {
-    const unitPhotos = state.categories.reduce((s, c) => s + state.data[u][c].photos.length, 0);
-    const unitPoor   = state.categories.filter(c => state.data[u][c].condition === 'poor').length;
-    const unitFilled = state.categories.filter(c => state.data[u][c].condition || state.data[u][c].note).length;
-    const row = document.createElement('div');
-    row.className = 'urt-row';
-    row.innerHTML = `
-      <span class="urt-unit">Unit ${escHtml(u)}</span>
-      <span class="urt-done">${unitFilled} / ${state.categories.length}</span>
-      <span class="urt-done">${unitPhotos}</span>
-      <span class="urt-poor">${unitPoor > 0 ? unitPoor + ' item' + (unitPoor > 1 ? 's' : '') : '—'}</span>
-      <button class="btn-ghost-lg" style="font-size:13px;padding:6px 12px;" onclick="jumpToUnit(${i})">Edit</button>`;
+    <div class="stat-card"><div class="stat-num">${S.units.length}</div><div class="stat-lbl">Units</div></div>
+    <div class="stat-card"><div class="stat-num">${S.categories.length}</div><div class="stat-lbl">Categories</div></div>
+    <div class="stat-card"><div class="stat-num stat-num--gold">${photos}</div><div class="stat-lbl">Photos</div></div>
+    <div class="stat-card"><div class="stat-num stat-num--red">${poor}</div><div class="stat-lbl">Poor items</div></div>`;
+  const tbody = document.getElementById('unit-review-rows'); tbody.innerHTML = '';
+  S.units.forEach((u, i) => {
+    const up = S.categories.filter(c => S.data[u][c].condition === 'poor').length;
+    const uf = S.categories.filter(c => S.data[u][c].condition || S.data[u][c].note).length;
+    const uph = S.categories.reduce((s, c) => s + S.data[u][c].photos.length, 0);
+    const row = document.createElement('div'); row.className = 'urt-row';
+    row.innerHTML = `<span class="urt-unit">Unit ${esc(u)}</span><span class="urt-done">${uf}/${S.categories.length}</span><span class="urt-done">${uph}</span><span class="urt-poor">${up > 0 ? up : '—'}</span><button class="btn-ghost-lg" style="font-size:13px;padding:6px 10px;" onclick="jumpUnit(${i})">Edit</button>`;
     tbody.appendChild(row);
   });
 }
 
-function jumpToUnit(i) {
-  state.activeUnit = i;
-  renderUnitTabs();
-  renderInspectGrid();
-  showScreen('screen-inspect');
-}
+function jumpUnit(i) { S.activeUnit = i; renderUnitTabs(); renderInspectBody(); showScreen('screen-inspect'); }
 
 function newWalkthrough() {
-  if (!confirm('Start a new walkthrough? Current data will be cleared.')) return;
-  state = { property:'',inspector:'',date:'',units:[],categories:[...DEFAULT_CATEGORIES],data:{},activeUnit:0,recording:false,mediaRecorder:null,audioChunks:[],modalUnit:null,modalCat:null };
+  if (!confirm('Start fresh? Current data will be cleared.')) return;
+  S = { property:'',inspector:'',date:'',units:[],categories:[...DEFAULT_CATEGORIES],data:{},activeUnit:0,recording:false,mediaRecorder:null,audioChunks:[],modalUnit:null,modalCat:null,photoModalUnit:null,photoModalCat:null };
   localStorage.removeItem(DRAFT_KEY);
-  document.getElementById('prop-name').value = '';
-  document.getElementById('inspector-name').value = '';
-  document.getElementById('units-input').value = '';
+  ['prop-name','inspector-name','units-input'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('insp-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('btn-export-nav').style.display = 'none';
   document.getElementById('nav-prop-name').textContent = '';
-  updateUnitCount();
-  renderSetupCatList();
-  showScreen('screen-setup');
+  updateUnitCount(); renderSetupCatList(); showScreen('screen-setup');
 }
 
 /* ============================================================ EXCEL EXPORT */
 function exportExcel() {
-  if (!state.units.length) { showToast('No data to export yet.'); return; }
+  if (!S.units.length) { showToast('No data to export.'); return; }
 
   const wb = XLSX.utils.book_new();
-  const cats = state.categories;
+  const cats = S.categories;
 
-  /* ------ SHEET 1: WALKTHROUGH DATA ------ */
-  const wsData = XLSX.utils.aoa_to_sheet([]);
-  const R = (r, c) => XLSX.utils.encode_cell({ r, c });
-  let row = 0;
+  /* ---- HELPERS ---- */
+  const NAVY  = 'FF1A2332';
+  const GOLD  = 'FFC9A84C';
+  const WHITE = 'FFFFFFFF';
+  const LIGHT = 'FFF7F5F0';
+  const GREEN_BG = 'FFEDF7ED'; const GREEN_FG = 'FF2E7D32';
+  const AMBER_BG = 'FFFFF8E1'; const AMBER_FG = 'FFE65100';
+  const RED_BG   = 'FFFFF5F5'; const RED_FG   = 'FFC62828';
+  const GRAY_BG  = 'FFEDE9E1'; const GRAY_FG  = 'FF6B6560';
+
+  function cell(v, opts = {}) {
+    const c = { v, t: typeof v === 'number' ? 'n' : 's' };
+    const s = {};
+    if (opts.bold || opts.header) { s.font = { ...(s.font || {}), bold: true }; }
+    if (opts.color) { s.font = { ...(s.font || {}), color: { rgb: opts.color } }; }
+    if (opts.sz)    { s.font = { ...(s.font || {}), sz: opts.sz }; }
+    if (opts.name)  { s.font = { ...(s.font || {}), name: opts.name }; }
+    if (opts.bg)    { s.fill = { fgColor: { rgb: opts.bg }, patternType: 'solid' }; }
+    if (opts.align) { s.alignment = { horizontal: opts.align, vertical: 'center', wrapText: true }; }
+    if (opts.wrap)  { s.alignment = { ...(s.alignment || {}), wrapText: true, vertical: 'top' }; }
+    if (opts.border) {
+      s.border = { top:{style:'thin',color:{rgb:'FFD3D1C7'}}, bottom:{style:'thin',color:{rgb:'FFD3D1C7'}}, left:{style:'thin',color:{rgb:'FFD3D1C7'}}, right:{style:'thin',color:{rgb:'FFD3D1C7'}} };
+    }
+    if (Object.keys(s).length) c.s = s;
+    return c;
+  }
+
+  function condStyle(cond) {
+    if (cond === 'good') return { bg: GREEN_BG, color: GREEN_FG };
+    if (cond === 'fair') return { bg: AMBER_BG, color: AMBER_FG };
+    if (cond === 'poor') return { bg: RED_BG,   color: RED_FG };
+    if (cond === 'na')   return { bg: GRAY_BG,  color: GRAY_FG };
+    return {};
+  }
+
+  /* ---- SHEET 1: WALKTHROUGH ---- */
+  const ws = {};
+  const ENC = XLSX.utils.encode_cell;
+  let r = 0;
 
   // Title block
-  wsData[R(row, 0)] = { v: 'UNIT WALKTHROUGH REPORT', t: 's' };
-  wsData[R(row + 1, 0)] = { v: state.property, t: 's' };
-  wsData[R(row + 2, 0)] = { v: `Inspector: ${state.inspector || '—'}`, t: 's' };
-  wsData[R(row + 3, 0)] = { v: `Date: ${formatDate(state.date)}`, t: 's' };
-  wsData[R(row + 4, 0)] = { v: `Exported: ${new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'})}`, t: 's' };
-  row += 6;
+  ws[ENC({r,c:0})] = cell('UNIT WALKTHROUGH REPORT', { bold:true, sz:16, color:WHITE, bg:NAVY, name:'Arial' });
+  r++;
+  ws[ENC({r,c:0})] = cell(S.property, { sz:12, color:WHITE, bg:NAVY, name:'Arial' });
+  r++;
+  ws[ENC({r,c:0})] = cell(`Inspector: ${S.inspector || '—'}   ·   Date: ${fmtDate(S.date)}   ·   Exported: ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}`, { sz:10, color:GOLD, bg:NAVY, name:'Arial' });
+  r += 2;
 
-  // Column headers
-  const headers = ['Unit', ...cats.flatMap(c => [c + ' — Condition', c + ' — Notes', c + ' — Photos'])];
-  headers.forEach((h, c) => { wsData[R(row, c)] = { v: h, t: 's' }; });
-  const headerRow = row;
-  row++;
+  // Column header row
+  const hdrRow = r;
+  ws[ENC({r,c:0})] = cell('Unit', { bold:true, bg:NAVY, color:WHITE, align:'center', border:true, name:'Arial' });
+  let col = 1;
+  cats.forEach(cat => {
+    const shortCat = cat.length > 28 ? cat.substring(0, 26) + '…' : cat;
+    ws[ENC({r,c:col})]   = cell(shortCat + '\nCondition', { bold:true, bg:NAVY, color:GOLD, align:'center', wrap:true, border:true, name:'Arial' });
+    ws[ENC({r,c:col+1})] = cell(shortCat + '\nNotes',     { bold:true, bg:NAVY, color:WHITE, align:'center', wrap:true, border:true, name:'Arial' });
+    ws[ENC({r,c:col+2})] = cell(shortCat + '\nPhotos',    { bold:true, bg:NAVY, color:WHITE, align:'center', wrap:true, border:true, name:'Arial' });
+    col += 3;
+  });
+  r++;
 
   // Data rows
-  state.units.forEach(u => {
-    wsData[R(row, 0)] = { v: u, t: 's' };
-    cats.forEach((c, ci) => {
-      const e = state.data[u][c];
-      wsData[R(row, 1 + ci * 3)] = { v: e.condition ? capitalize(e.condition) : '', t: 's' };
-      wsData[R(row, 2 + ci * 3)] = { v: e.note || '', t: 's' };
-      wsData[R(row, 3 + ci * 3)] = { v: e.photos.length ? e.photos.length + ' photo(s)' : '', t: 's' };
+  S.units.forEach((u, ui) => {
+    const rowBg = ui % 2 === 0 ? WHITE : 'FFFAF9F7';
+    ws[ENC({r,c:0})] = cell(u, { bold:true, align:'center', bg:rowBg, border:true, name:'Arial' });
+    let dc = 1;
+    cats.forEach(cat => {
+      const e = S.data[u][cat];
+      const cs = condStyle(e.condition);
+      const condLabel = e.condition ? cap(e.condition) : '';
+      ws[ENC({r,c:dc})]   = cell(condLabel,       { align:'center', bg: cs.bg || rowBg, color: cs.color, border:true, name:'Arial' });
+      ws[ENC({r,c:dc+1})] = cell(e.note || '',    { wrap:true, bg:rowBg, border:true, name:'Arial' });
+      ws[ENC({r,c:dc+2})] = cell(e.photos.length ? `${e.photos.length} photo(s)` : '', { align:'center', bg:rowBg, border:true, name:'Arial' });
+      dc += 3;
     });
-    row++;
+    r++;
   });
 
-  const lastDataRow = row - 1;
-  const lastCol = headers.length - 1;
+  const lastR = r - 1;
+  const lastC = 1 + cats.length * 3 - 1;
+  ws['!ref'] = XLSX.utils.encode_range({ s:{r:0,c:0}, e:{r:lastR,c:lastC} });
 
-  wsData['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastDataRow, c: lastCol } });
+  // Merges: title rows span all columns
+  const spanEnd = Math.min(lastC, 8);
+  ws['!merges'] = [
+    {s:{r:0,c:0},e:{r:0,c:spanEnd}},
+    {s:{r:1,c:0},e:{r:1,c:spanEnd}},
+    {s:{r:2,c:0},e:{r:2,c:spanEnd}},
+  ];
 
   // Column widths
-  wsData['!cols'] = [{ wch: 10 }, ...cats.flatMap(() => [{ wch: 14 }, { wch: 36 }, { wch: 12 }])];
+  ws['!cols'] = [{ wch:10 }, ...cats.flatMap(() => [{ wch:14 },{ wch:36 },{ wch:14 }])];
 
   // Row heights
-  const rowHeights = [];
-  for (let i = 0; i <= lastDataRow; i++) {
-    if (i === 0) rowHeights.push({ hpt: 24 });
-    else if (i === headerRow) rowHeights.push({ hpt: 40 });
-    else rowHeights.push({ hpt: 18 });
+  ws['!rows'] = [];
+  for (let i = 0; i <= lastR; i++) {
+    if (i === 0) ws['!rows'].push({ hpt: 30 });
+    else if (i === 1) ws['!rows'].push({ hpt: 22 });
+    else if (i === 2) ws['!rows'].push({ hpt: 16 });
+    else if (i === 3) ws['!rows'].push({ hpt: 8 }); // spacer
+    else if (i === hdrRow) ws['!rows'].push({ hpt: 52 });
+    else ws['!rows'].push({ hpt: 22 });
   }
-  wsData['!rows'] = rowHeights;
 
-  // Merges for title area
-  wsData['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: Math.min(lastCol, 5) } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: Math.min(lastCol, 5) } },
-  ];
+  XLSX.utils.book_append_sheet(wb, ws, 'Walkthrough');
 
-  XLSX.utils.book_append_sheet(wb, wsData, 'Walkthrough');
+  /* ---- SHEET 2: SUMMARY ---- */
+  const ws2 = {};
+  let r2 = 0;
 
-  /* ------ SHEET 2: SUMMARY ------ */
-  const sumRows = [
-    ['WALKTHROUGH SUMMARY', '', '', '', '', ''],
-    ['', '', '', '', '', ''],
-    ['Property', state.property],
-    ['Inspector', state.inspector || '—'],
-    ['Date', formatDate(state.date)],
-    ['Units inspected', state.units.length],
-    ['Total categories', cats.length],
-    ['', '', '', '', '', ''],
-    ['Unit', 'Items logged', 'Good', 'Fair', 'Poor', 'N/A', 'Photos'],
-  ];
+  ws2[ENC({r:r2,c:0})] = cell('SUMMARY', { bold:true, sz:14, color:WHITE, bg:NAVY, name:'Arial' });
+  ws2[ENC({r:r2,c:1})] = cell('', { bg:NAVY });
+  ws2[ENC({r:r2,c:2})] = cell('', { bg:NAVY });
+  ws2[ENC({r:r2,c:3})] = cell('', { bg:NAVY });
+  ws2[ENC({r:r2,c:4})] = cell('', { bg:NAVY });
+  ws2[ENC({r:r2,c:5})] = cell('', { bg:NAVY });
+  r2 += 2;
 
-  state.units.forEach(u => {
-    const good   = cats.filter(c => state.data[u][c].condition === 'good').length;
-    const fair   = cats.filter(c => state.data[u][c].condition === 'fair').length;
-    const poor   = cats.filter(c => state.data[u][c].condition === 'poor').length;
-    const na     = cats.filter(c => state.data[u][c].condition === 'na').length;
-    const filled = cats.filter(c => state.data[u][c].condition || state.data[u][c].note).length;
-    const photos = cats.reduce((s, c) => s + state.data[u][c].photos.length, 0);
-    sumRows.push([u, filled, good, fair, poor, na, photos]);
+  [['Property', S.property],['Inspector', S.inspector||'—'],['Date', fmtDate(S.date)],['Units inspected', S.units.length],['Categories', S.categories.length]].forEach(([k,v]) => {
+    ws2[ENC({r:r2,c:0})] = cell(k, { bold:true, bg:LIGHT, border:true, name:'Arial' });
+    ws2[ENC({r:r2,c:1})] = cell(v, { border:true, name:'Arial' });
+    r2++;
+  });
+  r2++;
+
+  // Table header
+  ['Unit','Items Logged','Good','Fair','Poor','N/A','Photos'].forEach((h,ci) => {
+    ws2[ENC({r:r2,c:ci})] = cell(h, { bold:true, bg:NAVY, color:ci===4?'FFE57373':WHITE, align:'center', border:true, name:'Arial' });
+  });
+  r2++;
+  const sumStart = r2 + 1;
+
+  S.units.forEach(u => {
+    const good  = cats.filter(c => S.data[u][c].condition==='good').length;
+    const fair  = cats.filter(c => S.data[u][c].condition==='fair').length;
+    const poor  = cats.filter(c => S.data[u][c].condition==='poor').length;
+    const na    = cats.filter(c => S.data[u][c].condition==='na').length;
+    const filled= cats.filter(c => S.data[u][c].condition||S.data[u][c].note).length;
+    const ph    = cats.reduce((s,c)=>s+S.data[u][c].photos.length,0);
+    [u,filled,good,fair,poor,na,ph].forEach((v,ci) => {
+      const opts = { border:true, name:'Arial', align: ci>0?'center':'left' };
+      if (ci===4&&poor>0) { opts.bg=RED_BG; opts.color=RED_FG; }
+      ws2[ENC({r:r2,c:ci})] = cell(v, opts);
+    });
+    r2++;
   });
 
-  // Totals row
-  const dataStart = 10;
-  const dataEnd = dataStart + state.units.length - 1;
-  if (state.units.length > 0) {
-    sumRows.push([
-      'TOTAL',
-      `=SUM(B${dataStart}:B${dataEnd})`,
-      `=SUM(C${dataStart}:C${dataEnd})`,
-      `=SUM(D${dataStart}:D${dataEnd})`,
-      `=SUM(E${dataStart}:E${dataEnd})`,
-      `=SUM(F${dataStart}:F${dataEnd})`,
-      `=SUM(G${dataStart}:G${dataEnd})`
-    ]);
+  // Totals
+  const sumEnd = r2;
+  if (S.units.length > 0) {
+    ws2[ENC({r:r2,c:0})] = cell('TOTAL', { bold:true, bg:LIGHT, border:true, name:'Arial' });
+    for (let ci = 1; ci <= 6; ci++) {
+      const colLetter = String.fromCharCode(65 + ci);
+      ws2[ENC({r:r2,c:ci})] = { t:'n', f:`SUM(${colLetter}${sumStart}:${colLetter}${sumEnd})`, s:{ font:{bold:true,name:'Arial'}, fill:{fgColor:{rgb:LIGHT},patternType:'solid'}, border:{top:{style:'thin',color:{rgb:'FFD3D1C7'}},bottom:{style:'thin',color:{rgb:'FFD3D1C7'}},left:{style:'thin',color:{rgb:'FFD3D1C7'}},right:{style:'thin',color:{rgb:'FFD3D1C7'}}}, alignment:{horizontal:'center'} } };
+    }
+    r2++;
   }
 
-  const wsSummary = XLSX.utils.aoa_to_sheet(sumRows);
-  wsSummary['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
-  wsSummary['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
-  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+  ws2['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:r2,c:6}});
+  ws2['!cols'] = [{wch:14},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}];
+  ws2['!rows'] = [{hpt:28},{hpt:6}];
+  ws2['!merges'] = [{s:{r:0,c:0},e:{r:0,c:5}}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
 
-  /* ------ SHEET 3: PHOTO INDEX (if any photos) ------ */
-  let totalPhotos = 0;
-  state.units.forEach(u => cats.forEach(c => { totalPhotos += state.data[u][c].photos.length; }));
+  /* ---- SHEET 3: PHOTO INDEX ---- */
+  let totalPh = 0;
+  S.units.forEach(u => cats.forEach(c => { totalPh += S.data[u][c].photos.length; }));
 
-  if (totalPhotos > 0) {
-    const photoRows = [
-      ['PHOTO INDEX', '', '', ''],
-      ['', '', '', ''],
-      ['Unit', 'Category', 'Photo #', 'File Reference']
-    ];
-    state.units.forEach(u => {
+  if (totalPh > 0) {
+    const ws3 = {};
+    let r3 = 0;
+    ws3[ENC({r:r3,c:0})] = cell('PHOTO INDEX', { bold:true, sz:13, color:WHITE, bg:NAVY, name:'Arial' });
+    ws3[ENC({r:r3,c:1})] = cell('', { bg:NAVY });
+    ws3[ENC({r:r3,c:2})] = cell('', { bg:NAVY });
+    ws3[ENC({r:r3,c:3})] = cell('', { bg:NAVY });
+    r3 += 2;
+    ['Unit','Category','Photo #','Reference'].forEach((h,ci) => {
+      ws3[ENC({r:r3,c:ci})] = cell(h, { bold:true, bg:NAVY, color:WHITE, border:true, name:'Arial' });
+    });
+    r3++;
+    S.units.forEach(u => {
       cats.forEach(c => {
-        state.data[u][c].photos.forEach((_, idx) => {
-          photoRows.push([u, c, idx + 1, `Unit_${u}_${c.replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_')}_photo${idx + 1}.jpg`]);
+        S.data[u][c].photos.forEach((_,idx) => {
+          [u, c, idx+1, `Unit_${u}_${c.replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_')}_photo${idx+1}.jpg`].forEach((v,ci) => {
+            ws3[ENC({r:r3,c:ci})] = cell(v, { border:true, name:'Arial', align:ci===2?'center':undefined });
+          });
+          r3++;
         });
       });
     });
-    const wsPhotos = XLSX.utils.aoa_to_sheet(photoRows);
-    wsPhotos['!cols'] = [{ wch: 10 }, { wch: 42 }, { wch: 10 }, { wch: 48 }];
-    wsPhotos['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
-    XLSX.utils.book_append_sheet(wb, wsPhotos, 'Photo Index');
+    ws3['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:r3-1,c:3}});
+    ws3['!cols'] = [{wch:10},{wch:44},{wch:10},{wch:52}];
+    ws3['!merges'] = [{s:{r:0,c:0},e:{r:0,c:3}}];
+    XLSX.utils.book_append_sheet(wb, ws3, 'Photo Index');
   }
 
-  const date = state.date || new Date().toISOString().split('T')[0];
-  const fname = sanitizeFilename(state.property) + '_walkthrough_' + date + '.xlsx';
+  const fname = sanit(S.property) + '_walkthrough_' + (S.date||new Date().toISOString().split('T')[0]) + '.xlsx';
   XLSX.writeFile(wb, fname);
   showToast('Exported: ' + fname);
 }
 
-/* ============================================================ SCREEN */
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-}
-
 /* ============================================================ UTILS */
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
-}
-function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-function sanitizeFilename(s) { return (s||'walkthrough').replace(/[^a-z0-9]/gi,'_').toLowerCase(); }
-function formatDate(d) {
-  if (!d) return '';
-  try { const [y,m,dd] = d.split('-'); return new Date(y,m-1,dd).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}); }
-  catch { return d; }
-}
+function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function sanit(s) { return (s||'walkthrough').replace(/[^a-z0-9]/gi,'_').toLowerCase(); }
+function fmtDate(d) { if (!d) return ''; try { const [y,m,dd]=d.split('-'); return new Date(y,m-1,dd).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}); } catch{return d;} }
