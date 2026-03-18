@@ -378,18 +378,13 @@ function exportHTMLReport() {
     let rows = '';
     activeCats.forEach(cat => {
       const e = S.data[u][cat];
-      // Photos: 3 per row, large
-      const photoHtml = e.photos.length
-        ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">${e.photos.map(src =>
-            `<img src="${src}" style="width:160px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #ede9e1;">`
-          ).join('')}</div>`
-        : '';
-      const hasContent = e.condition || e.note || e.photos.length;
-      rows += `<tr style="${!hasContent ? 'opacity:0.5;' : ''}">
+      const photoCount = e.photos.length;
+      const hasContent = e.condition || e.note || photoCount;
+      rows += `<tr style="${!hasContent ? 'opacity:0.45;' : ''}">
         <td style="padding:12px 16px;font-size:13px;font-weight:500;color:#1a2332;border-bottom:1px solid #ede9e1;width:190px;vertical-align:top;white-space:nowrap;">${esc(cat)}</td>
         <td style="padding:12px 16px;border-bottom:1px solid #ede9e1;vertical-align:top;width:90px;">${condBadge(e.condition)}</td>
         <td style="padding:12px 16px;font-size:13px;color:#3a3530;border-bottom:1px solid #ede9e1;vertical-align:top;line-height:1.6;">${esc(e.note || '')}</td>
-        <td style="padding:12px 16px;border-bottom:1px solid #ede9e1;vertical-align:top;">${photoHtml}</td>
+        <td style="padding:12px 16px;border-bottom:1px solid #ede9e1;vertical-align:top;font-size:12px;color:${photoCount ? '#c9a84c' : '#b8b2a8'};">${photoCount ? `${photoCount} photo${photoCount > 1 ? 's' : ''} — see appendix` : '—'}</td>
       </tr>`;
     });
     const poor = activeCats.filter(c => S.data[u][c].condition === 'poor').length;
@@ -419,6 +414,37 @@ function exportHTMLReport() {
         </table>
       </div>`;
   });
+
+  // Build photo appendix
+  let photoAppendixItems = '';
+  S.units.forEach(u => {
+    cats.forEach(cat => {
+      if (S.data[u][cat]?.deleted) return;
+      const photos = S.data[u][cat].photos;
+      if (!photos.length) return;
+      photos.forEach((src, idx) => {
+        const condB = condBadge(S.data[u][cat].condition);
+        photoAppendixItems += `
+          <div style="page-break-inside:avoid;margin-bottom:40px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #ede9e1;">
+              <div style="background:#1a2332;color:#c9a84c;font-size:11px;font-weight:500;letter-spacing:0.08em;padding:4px 12px;border-radius:99px;white-space:nowrap;">Unit ${esc(u)}</div>
+              <div style="font-size:13px;font-weight:500;color:#1a2332;">${esc(cat)}</div>
+              <div style="margin-left:4px;">${condB}</div>
+              <div style="margin-left:auto;font-size:12px;color:#9e9890;">Photo ${idx + 1} of ${photos.length}</div>
+            </div>
+            <img src="${src}" style="width:100%;max-width:100%;height:auto;border-radius:10px;border:1px solid #ede9e1;display:block;">
+          </div>`;
+      });
+    });
+  });
+  const photoAppendix = photoAppendixItems ? `
+    <div style="page-break-before:always;margin-top:0;">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #1a2332;">
+        <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:500;color:#1a2332;">Photo Appendix</div>
+        <div style="font-size:12px;color:#9e9890;margin-top:4px;">${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''} · ${esc(S.property)}</div>
+      </div>
+      ${photoAppendixItems}
+    </div>` : '';
 
   let totalPhotos = 0, totalPoor = 0;
   S.units.forEach(u => cats.forEach(c => {
@@ -490,6 +516,8 @@ function exportHTMLReport() {
   </div>
 
   ${unitSections}
+
+  ${photoAppendix}
 
   <div style="margin-top:40px;padding-top:16px;border-top:1px solid #ede9e1;display:flex;justify-content:space-between;align-items:center;">
     <div style="font-family:'DM Sans',sans-serif;font-size:11px;letter-spacing:0.14em;color:#b8b2a8;">GREYSTEEL COMMERCIAL REAL ESTATE</div>
