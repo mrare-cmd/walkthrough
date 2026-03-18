@@ -619,9 +619,7 @@ function loadSampleData() {
   document.getElementById('prop-name').value = '604 12th Street NE';
   document.getElementById('inspector-name').value = 'Mason';
   document.getElementById('insp-date').value = new Date().toISOString().split('T')[0];
-  document.getElementById('units-input').value = '101
-102
-201';
+  document.getElementById('units-input').value = '101\n102\n201';
   updateUnitCount();
 
   const sampleData = {
